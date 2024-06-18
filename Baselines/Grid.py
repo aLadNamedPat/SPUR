@@ -1,7 +1,7 @@
 import numpy as np
 import random
 import matplotlib.pyplot as plt
-
+import copy as copy
 # Might need to update the environment so that everything is passed as tensors for the agents.
 
 #Tracking the grid for the agent
@@ -11,6 +11,8 @@ class GridTracker:
         n : int, # grid size
         bound : int
     ) -> None:
+        
+
         self.bound = bound
         self.prob_grid = np.ones((n, n))                    #The current calculated probibility of events occurring
         self.tracked_grid = np.zeros((n, n))                #The current grid tracking the expected value of events occurring based on the calculated probability
@@ -71,7 +73,12 @@ class GridWorld:
         p_bounds : float = 0.2,
         e_bounds : int = 10,
         seed : int = None
-    ) -> None:        
+    ) -> None:
+
+        self.total_detection_time = 0                       # Keep track of the total detection time taken from appearance to detection
+        self.total_events_detected = 0                      # Keep track of the number of events detected
+        self.num_events = 0                                 # Keeps track of the number of events that are currently active
+    
         if seed is not None:
             random.seed(seed)
 
@@ -104,26 +111,35 @@ class GridWorld:
         point : tuple[int, int], #the location of the agent
     ) -> int:
         #Determines where events have occurred and adds to them        
-        random_numbers = np.random.rand(*self.e_grid.shape)
-        event_occurrences = random_numbers < self.p_grid
-        self.e_grid += event_occurrences.astype(int)
-        
-        events_found = self.e_grid[point[0], point[1]]
-        self.e_grid[point[0], point[1]] = 0
-        self.e_grid = self.e_grid.clip(0, self.e_bounds)
+        random_numbers = np.random.rand(*self.e_grid.shape)                 # Generates random floats from 0 to 1 in the shape of the grid
+        event_occurrences = random_numbers < self.p_grid                    # If random_number generated is smaller than the probability of events occurring, then an event has occurred 
+        self.old_e_grid = np.copy(self.e_grid)                              # Save the event grid before adding anything or clipping it
+        self.e_grid += event_occurrences.astype(int)                        # Add to the event grid data
+        self.e_grid = self.e_grid.clip(0, self.e_bounds)                    # Clip the number of events in each grid to the set bounds
 
-        return events_found #Returns the number of events found at the given location
+        self.num_events += int(np.sum(self.e_grid - self.old_e_grid))       # Tracks the number of events that are active on the field
+
+        events_found = self.e_grid[point[0], point[1]]                      # The number of events found by the agent
+        self.e_grid[point[0], point[1]] = 0                                 # Sets the number of events at the found grid to 0
+
+        self.num_events -= int(events_found)                                # Subtract the number of events from the total number of current active events
+        self.total_events_detected += events_found                          # Add the number of events found to the total number of events detected
+        self.total_detection_time += self.num_events                        # Since the active events are still not detected, add their result to the total detection time
+
+        return events_found                                                 # Returns the number of events found at the given location
     
     #Multi-timestep stepping
     def step_timesteps(
         self,
         traj : list[tuple[int, int]]
     ) -> list[int]:
+        
         events_found_list = []
+
         for x, y in traj:
             e = self.step((x,y))
             events_found_list.append(e)
-        
+            
         return events_found_list
     
     #Calculate the expected growth per second
@@ -131,3 +147,12 @@ class GridWorld:
         self,
     ) -> float:
         return np.sum(self.p_grid)
+    
+
+    #Find average detection time
+    def adt(
+        self,
+    ) -> float:
+        print("total detection time", self.total_detection_time)
+        print("total events detected", self.total_events_detected)
+        return self.total_detection_time / self.total_events_detected

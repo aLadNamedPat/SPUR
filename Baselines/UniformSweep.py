@@ -2,7 +2,8 @@ import numpy as np
 import copy
 from enum import Enum, IntEnum, auto
 
-#Code used from 
+#Code used from https://github.com/rodriguesrenato/coverage-path-planning/
+
 class PlannerStatus(Enum):
     STANDBY = auto()
     COVERAGE_SEARCH = auto()

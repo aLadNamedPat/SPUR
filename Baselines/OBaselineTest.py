@@ -3,11 +3,11 @@ from Original_Baseline import OBaseline
 from UniformSweep import CoveragePlanner, HeuristicType
 import numpy as np
 
-g = GridWorld(10, 3, central_probs = [0.4, 0.1, 0.5, 0.05], decrease_rate=[0.1, 0.02, 0.1, 0.05], e_bounds = 10)
+g = GridWorld(10, 3, central_probs = [0.03, 0.05, 0.02], decrease_rate = [0.03, 0.05, 0.02], e_bounds = 100)
 
 #Uniform sweep baseline
 grid = np.zeros((10, 10))
-grid[2][2] = 2
+grid[0][0] = 2
 c = CoveragePlanner(grid)
 c.set_debug_level(1)
 c.start(initial_orientation = 0, cp_heuristic = HeuristicType.MANHATTAN)
@@ -26,12 +26,13 @@ while(current_time < 10000):
 print(g.adt())
 print(total_events)
 
-Ob = OBaseline(0.92, 10, (2, 2))
-g = GridWorld(10, 3, central_probs = [0.4, 0.1, 0.5, 0.05], decrease_rate=[0.1, 0.02, 0.1, 0.05], e_bounds = 10)
-#Baseline as seen in https://www.cs.utexas.edu/~pstone/Papers/bib2html-links/ICAR05.pdf
+Ob = OBaseline(0.05, 10, (0, 0), 0.8, 100)
+g = GridWorld(10, 3, central_probs = [0.03, 0.05, 0.02], decrease_rate = [0.03, 0.05, 0.02], e_bounds = 100)
+    #Baseline as seen in https://www.cs.utexas.edu/~pstone/Papers/bib2html-links/ICAR05.pdf
 Ob._setup__()
 current_time = 0
 total_events = 0
+
 while (current_time < 10000):
     (location, traj, time) = Ob.take_action()
     events_list = g.step_timesteps(traj)

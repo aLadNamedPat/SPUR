@@ -1,4 +1,6 @@
 Baselines/__pycache__
+ContinualSweepSDMP/__pycache__
+ContinualSweepGrid/__pycache__
 Baselines/UniformSweepTest.py
 Baselines/Floyd-Warshall-Test.py
 

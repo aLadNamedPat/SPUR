@@ -61,9 +61,9 @@ class GridTracker:
         self.tracked_grid += self.prob_grid
         self.tracked_grid[point[0], point[1]] = 0
         self.tracked_grid.clip(0, self.bound)
-        self.agent_location.fill(0)
-        self.agent_location[point[0],point[1]] = 1
-        return self.tracked_grid, self.prob_grid, self.agent_location
+        self.agent_locations.fill(0)
+        self.agent_locations[point[0],point[1]] = 1
+        return self.tracked_grid, self.prob_grid, self.agent_locations
     
     def multi_update(
         self,
@@ -71,7 +71,7 @@ class GridTracker:
         observed_events : list[int],
         timestep : int = 0,
     ):
-        for point in range(len(points)):
+        for point in points:
             self.agent_locations[point[0], point[1]] = 1
 
         if timestep == 0:
@@ -86,7 +86,19 @@ class GridTracker:
                 new_prob = self.prob_grid[points[i][0], points[i][1]] * 0.5 + \
                 observed_events / (timestep - \
                 self.last_timestep_visited[points[i][0], points[i][1]]) * 0.5  
-        
+            
+            self.adjust_grid(points[i], new_prob)
+
+            self.last_timestep_visited[points[i][0], points[i][1]] = timestep
+
+        self.tracked_grid += self.prob_grid
+
+        for i in range(len(observed_events)):
+            self.tracked_grid[points[i][0], points[i][1]] = 0
+            self.tracked_grid.clip(0, self.bound)
+            self.agent_locations[points[i][0], points[i][1]] = 1
+            
+        return self.tracked_grid, self.prob_grid, self.agent_locations
 
 # The actual gridworld where the real number of events and event probabilities are tracked
 class GridWorld:

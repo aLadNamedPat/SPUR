@@ -29,6 +29,7 @@ class OBaseline:
         self.pix_square_size = self.window_size / self.gridSize
         self.rendering = render
         self.clock = pygame.time.Clock()
+        
     def _setup__(self):                                                 # Compute the shortest path and trajectory for all points to each other
 
         # Initialize the graph of the grid in terms of distances
@@ -36,6 +37,7 @@ class OBaseline:
         # Initialize the last location to travel to
         self.l_node = np.zeros((self.gridSize * self.gridSize, self.gridSize * self.gridSize))
 
+        # Prepare the adjacency matrix
         for i in range(self.gridSize):
             for j in range(self.gridSize):
                 for k in range(self.gridSize):
@@ -44,10 +46,20 @@ class OBaseline:
                             self.dist[i * self.gridSize + j, k * self.gridSize + l] = 1
                         elif (i == k and j == l):
                             self.dist[i * self.gridSize + j, k * self.gridSize + l] = 0
-                            self.l_node[i * self.gridSize + j, k * self.gridSize + l] = 0
                         else:
                             self.dist[i * self.gridSize + j, k * self.gridSize + l] = float("inf")
         
+        # Prepare the path matrix
+        for i in range(self.gridSize * self.gridSize):
+            for j in range(self.gridSize * self.gridSize):
+                if i == j:
+                    self.l_node[i, j] = 0
+                elif self.dist[i, j] != float("inf"):
+                    self.l_node[i, j] = i
+                else:
+                    self.l_node[i, j] = -1
+
+
         # Floyd-Warshall's algorithm
         for i in range(self.gridSize * self.gridSize):                                  #This is the starting location x, y
             for j in range(self.gridSize * self.gridSize):                              #This is the ending location x, y
@@ -55,7 +67,7 @@ class OBaseline:
                     if (self.dist[i, k] is not float("inf") and self.dist[k, j] is not float("inf")):
                         if (self.dist[i, j] > self.dist[i, k] + self.dist[k, j]):
                             self.dist[i, j] =  self.dist[i, k] + self.dist[k, j]
-                            self.l_node[i, j] = k
+                            self.l_node[i, j] = self.l_node[k, j]
         
     def update_point(
         self,
@@ -89,6 +101,8 @@ class OBaseline:
         best_traj = None
         for i in range(len(self.grid)):
             for j in range(len(self.grid)):
+                if (i, j) == (self.location[0], self.location[1]):
+                    continue
                 (r, traj, t) = self.compute_trajectory((i, j))          # Return the expected reward and time spent to visit the point along the trajectory
                 if r / int(t) > max_reward:                             # Compute whether or not the average reward over time is the max reward possible
                     max_reward = r / int(t)                             # Redefine the max reward
@@ -111,7 +125,7 @@ class OBaseline:
         traj = [(final[0], final[1])]
         final = final[0] * self.gridSize + final[1]
 
-        while(final is not None and final != 0):
+        while(self.l_node[original, final] != original):
             final = int(self.l_node[original, final])
             if final != 0:
                 traj = [(int(final / self.gridSize), final % self.gridSize)] + traj

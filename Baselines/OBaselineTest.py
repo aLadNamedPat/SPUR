@@ -16,7 +16,7 @@ traj = c.get_xy_trajectory(c.current_trajectory)
 current_time = 0
 total_events = 0
 
-while(current_time < 10000):
+while(current_time < 3000):
     traj.reverse()
     events_list = g.step_timesteps(traj)
     for i in range(len(events_list)):
@@ -27,13 +27,14 @@ print(g.adt())
 print(total_events)
 
 Ob = OBaseline(0.05, 10, (0, 0), 0.8, 100)
-g = GridWorld(10, 3, central_probs = [0.03, 0.05, 0.02], decrease_rate = [0.03, 0.05, 0.02], e_bounds = 100)
+g = GridWorld(10, 3, central_probs = [0.03, 0.05, 0.02], decrease_rate = [0.03, 0.05, 0.02], e_bounds = 100, render=True)
     #Baseline as seen in https://www.cs.utexas.edu/~pstone/Papers/bib2html-links/ICAR05.pdf
 Ob._setup__()
 current_time = 0
 total_events = 0
 
-while (current_time < 10000):
+print(list(Ob.l_node))
+while (current_time < 3000):
     (location, traj, time) = Ob.take_action()
     events_list = g.step_timesteps(traj)
     for i in range(len(traj)):

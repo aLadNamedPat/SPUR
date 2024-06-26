@@ -60,8 +60,8 @@ class GridTracker:
 
         self.tracked_grid += self.prob_grid
         self.tracked_grid[point[0], point[1]] = 0
-        self.tracked_grid.clip(0, self.bound)
-        self.agent_location.fill(0)
+        self.tracked_grid = self.tracked_grid.clip(0, self.bound)
+        self.agent_location = self.agent_location.fill(0)
         self.agent_location[point[0],point[1]] = 1
         return self.tracked_grid, self.prob_grid, self.agent_location
 

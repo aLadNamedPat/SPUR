@@ -60,7 +60,7 @@ class GridTracker:
 
         self.tracked_grid += self.prob_grid
         self.tracked_grid[point[0], point[1]] = 0
-        self.tracked_grid.clip(0, self.bound)
+        self.tracked_grid = self.tracked_grid.clip(0, self.bound)
         self.agent_locations.fill(0)
         self.agent_locations[point[0],point[1]] = 1
         return self.tracked_grid, self.prob_grid, self.agent_locations
@@ -92,10 +92,12 @@ class GridTracker:
             self.last_timestep_visited[points[i][0], points[i][1]] = timestep
 
         self.tracked_grid += self.prob_grid
+        print(self.tracked_grid)
 
+        self.agent_locations.fill(0)
         for i in range(len(observed_events)):
             self.tracked_grid[points[i][0], points[i][1]] = 0
-            self.tracked_grid.clip(0, self.bound)
+            self.tracked_grid = self.tracked_grid.clip(0, self.bound)
             self.agent_locations[points[i][0], points[i][1]] = 1
             
         return self.tracked_grid, self.prob_grid, self.agent_locations
@@ -197,7 +199,6 @@ class GridWorld:
     ) -> list[int]:
         self.event_occurence()
         self.num_events += int(np.sum(self.e_grid - self.old_e_grid))
-
         events_found = []
         for i in range(len(points)):
             event_found = self.e_grid[points[i][0], points[i][1]]
@@ -231,12 +232,12 @@ class GridWorld:
     ) -> list[list[int]]:
 
         events_found_list = []
-
-        for i in range(len(trajs)):
+        for i in range(len(trajs[0])):
             points = [traj[i] for traj in trajs]
             e = self.multistep(points)
             events_found_list.append(e)
-        
+
+        print(events_found_list) 
         return events_found_list                                            # Returns in the form of [[1, 2, 3], [3, 1, 2], [3, 1, 2]]
     
     #Calculate the expected growth per second

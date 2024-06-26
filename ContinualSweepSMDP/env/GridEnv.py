@@ -285,7 +285,7 @@ class GridEnv(ParallelEnv):
         }
 
         info = {
-            f"agent{a}" : {} for a in range(self.numAgents)
+            "num_timesteps" : dist[min_idx]
         }
 
         if self.render_mode != None:

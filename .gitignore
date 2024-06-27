@@ -1,8 +1,11 @@
 Baselines/__pycache__
 ContinualSweepSDMP/__pycache__
-ContinualSweepGrid/__pycache__
+ContinualSweepingGrid/__pycache__
 Baselines/UniformSweepTest.py
 Baselines/Floyd-Warshall-Test.py
+
+RL_Models/Baseline/__pycache__
+RL_Models/Simple_Action/__pycache__
 
 NoCommGrid/
 test.py

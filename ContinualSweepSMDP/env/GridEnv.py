@@ -29,16 +29,23 @@ class GridEnv(ParallelEnv):
         self.numAgents = num_agents                                             # Set the number of agents
         self.numCenters = num_centers                                           # Set the number of centers of probability of events occuring
         self.max_timesteps = max_timesteps                                      # Set the max number of timesteps occurring
+        self.render_mode = render_mode                                          # Set up the render mode of the agents
 
-        self._setup__()                                                         # Calculate all the trajectories
-
-        self.gridTracker = GridTracker(grid_size, bound)                        # Create a grid tracker for tracking events occurring at different locations
-        self.envGrid = GridWorld(grid_size, num_centers)                        # Create the actual grid environment
 
         if agent_positions is not None and len(agent_positions) == num_agents:
             self.agent_positions = agent_positions
         else: 
             self.agent_positions = self.GSL()                                   # Generate the positions of the agents randomly
+        
+        self.__reset_setup__()                                                  # Sets up all the environment features                             
+        self._setup__()                                                         # Calculate all the trajectories
+
+    def __reset_setup__(
+        self,
+    ) -> None:
+        
+        self.gridTracker = GridTracker(self.gridSize, self.bound)                        # Create a grid tracker for tracking events occurring at different locations
+        self.envGrid = GridWorld(self.gridSize, self.numCenters)                        # Create the actual grid environment
 
         self.possible_agents = [f"agent{i}" for i in range(self.numAgents)]     # Set the possible agents for the PettingZoo environment
         self.agents = self.possible_agents[:]                                   # Set the agents for the PettingZoo environment
@@ -48,7 +55,7 @@ class GridEnv(ParallelEnv):
         self.pix_square_size = (                                                # Size of the square of the environment
             64
         )
-        self.render_mode = render_mode
+
         self.window = None
         self.window_size = (self.pix_square_size) * (self.gridSize)
 
@@ -56,7 +63,10 @@ class GridEnv(ParallelEnv):
         self.last_saved_rewards = {f"agent{i}" : 0 for i in range(self.numAgents)} # Last saved rewards for agents
         self.decision_steps = {f"agent{i}" : 0 for i in range(self.numAgents)} # Save the number of decision steps that each agent is taking
 
-    def _setup__(self):                                                        # Compute the shortest path and trajectory for all points to each other
+
+    def _setup__(
+        self,
+    ) -> None:                                                        # Compute the shortest path and trajectory for all points to each other
 
         # Initialize the graph of the grid in terms of distances
         self.dist = np.zeros((self.gridSize * self.gridSize, self.gridSize * self.gridSize))
@@ -125,7 +135,8 @@ class GridEnv(ParallelEnv):
                 final_positions[f"agent{i}"] = int(self.l_node[original_positions[f"agent{i}"], final_positions[f"agent{i}"]])
                 if final_positions[f"agent{i}"] != 0:
                     trajectories[f"agent{i}"] = [(int(final_positions[f"agent{i}"] / self.gridSize), final_positions[f"agent{i}"] % self.gridSize)] + trajectories[f"agent{i}"]
-            
+            trajectories[f"agent{i}"] = trajectories[f"agent{i}"][1:]
+
         return (trajectories, total_dist) #Returns the expected reward, the trajectory taken, and the total distance of travel
 
     # Generate the random positions of the agents when initiating
@@ -151,8 +162,7 @@ class GridEnv(ParallelEnv):
         agent_mask = [None for _ in range(self.num_agents)]
         self.agent_positions = self.GSL()
 
-        self.gridTracker = GridTracker(self.gridSize, self.bound)
-        self.envGrid = GridWorld(self.gridSize, self.numCenters)
+        self.__reset_setup__()
 
         ap = [] #Store the other agent positions
         op = [] #Store the agent's own position
@@ -234,9 +244,13 @@ class GridEnv(ParallelEnv):
             self.agent_positions[i] = trimmed_trajs[i][-1]
             # Reward as implemented here: https://arxiv.org/pdf/2006.00589 (page 4)
             self.saved_rewards[f"agent{i}"] += sum(step[i] for step in events)
-            rewards[f"agent{i}"] = self.saved_rewards[f"agent{i}"] / self.curr_step * (self.decision_steps[f"agent{i}"]) \
-                  - self.last_saved_rewards[f"agent{i}"] * (self.decision_steps[f"agent{i}"] - 1) / (self.curr_step - dist[min_idx])
+            if self.decision_steps[f"agent{i}"] == 1:
+                rewards[f"agent{i}"] = 0
+            else:
+                rewards[f"agent{i}"] = (self.saved_rewards[f"agent{i}"] / self.curr_step * (self.decision_steps[f"agent{i}"])
+                    - self.last_saved_rewards[f"agent{i}"] * (self.decision_steps[f"agent{i}"] - 1) / (self.curr_step - dist[min_idx]))
             
+            # print(rewards)
             if i in min_idxs:
                 self.last_saved_rewards[f"agent{i}"] = self.saved_rewards[f"agent{i}"]
                 self.saved_rewards[f"agent{i}"] = 0
@@ -256,8 +270,8 @@ class GridEnv(ParallelEnv):
         ap = [] #Store the other agent's positions
         for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
             events_tracked = events[i]
-            d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i)
-            print(d)
+            d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
+            # print(d)
         er = d
         ep = e
         
@@ -309,9 +323,7 @@ class GridEnv(ParallelEnv):
             self.clock = pygame.time.Clock()
 
         canvas = pygame.Surface((self.window_size, self.window_size))
-
         canvas.fill((255, 255 ,255))
-
 
         #Draw the grids that the agent is traveling through
         for x in range(self.gridSize + 1):
@@ -330,7 +342,7 @@ class GridEnv(ParallelEnv):
                 (0, self.pix_square_size * x),
                 (self.window_size, self.pix_square_size * x)
             )
-
+        
         for a in range(self.numAgents):
             pygame.draw.rect(
                 canvas,

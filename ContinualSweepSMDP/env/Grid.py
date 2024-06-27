@@ -69,7 +69,7 @@ class GridTracker:
         self,
         points : list[tuple[int, int]],
         observed_events : list[int],
-        timestep : int = 0,
+        timestep : int = 1,
     ):
         for point in points:
             self.agent_locations[point[0], point[1]] = 1
@@ -79,20 +79,21 @@ class GridTracker:
         
         for i in range(len(observed_events)):
             if observed_events[i] == self.bound:
-                new_prob = self.prob_grid[points[i][0], points[i][1]] * 0.5 + \
-                (1 + (observed_events / (timestep - \
-                self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.25  #Change this calculations later on, this is just a filler for now
+                new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
+                (1 + (observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.25)  
+                #Change this calculations later on, this is just a filler for now
             else:
-                new_prob = self.prob_grid[points[i][0], points[i][1]] * 0.5 + \
-                observed_events / (timestep - \
-                self.last_timestep_visited[points[i][0], points[i][1]]) * 0.5  
-            
-            self.adjust_grid(points[i], new_prob)
+                new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
+                observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.5)
+            # print("Current timestep:", timestep)
+            # print("Last visited timestep", self.last_timestep_visited[points[i][0], points[i][1]])
+            # print("New probability:", new_prob)
 
+            self.adjust_grid(points[i], new_prob)
             self.last_timestep_visited[points[i][0], points[i][1]] = timestep
 
         self.tracked_grid += self.prob_grid
-        print(self.tracked_grid)
+        # print(self.tracked_grid)
 
         self.agent_locations.fill(0)
         for i in range(len(observed_events)):
@@ -237,7 +238,7 @@ class GridWorld:
             e = self.multistep(points)
             events_found_list.append(e)
 
-        print(events_found_list) 
+        # print(events_found_list) 
         return events_found_list                                            # Returns in the form of [[1, 2, 3], [3, 1, 2], [3, 1, 2]]
     
     #Calculate the expected growth per second

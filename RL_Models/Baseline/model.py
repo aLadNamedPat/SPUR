@@ -27,30 +27,29 @@ class qValuePredictor(nn.Module):
             )
         )
         
-        for i in range(len(hidden_dims)):
+        for i in range(len(hidden_dims) - 1):
             self.encoder_store.append(
                 nn.Sequential(
                     nn.Conv2d(
                         hidden_dims[i],
                         hidden_dims[i + 1],
                         kernel_size = 4,
-                        padding = 2
+                        padding = 1
                     ),
                     nn.LeakyReLU()
                 )
             )
 
-
         self.encoder_decoder_linear = (
             nn.Sequential(
                 nn.Linear(
-                    in_features = hidden_dims[-1] * 8 * 8,
+                    in_features = hidden_dims[-1] * 128,
                     out_features = 500
                 ),
                 nn.LeakyReLU(),
                 nn.Linear(
                     in_features = 500,
-                    out_features=hidden_dims[-1] * 8 * 8
+                    out_features=hidden_dims[-1] * 128
                 ),
                 nn.LeakyReLU(),
             )
@@ -62,16 +61,17 @@ class qValuePredictor(nn.Module):
         self.decoder_store = []
 
 
-        for i in range(len(hidden_dims)):
+        for i in range(len(hidden_dims) - 1):
             self.decoder_store.append(
                 nn.Sequential(
                     nn.ConvTranspose2d(
                         hidden_dims[i],
                         hidden_dims[i + 1],
-                        kernel_size=5
-                    )
-                ),
-                nn.LeakyReLU()
+                        kernel_size=4,
+                        padding = 1,
+                    ),
+                    nn.LeakyReLU()
+                )
             )
 
         self.decoder_store.append(
@@ -79,13 +79,13 @@ class qValuePredictor(nn.Module):
                 hidden_dims[-1],
                 out_channels,
                 5,
-                1,
+                3,
                 2
             )
         )
 
         self.encoder = nn.Sequential(*self.encoder_store)
-        self.decoder = nn.Sequential(*self.decoder)
+        self.decoder = nn.Sequential(*self.decoder_store)
 
     def encoder_conv_layer(
         self,
@@ -102,10 +102,11 @@ class qValuePredictor(nn.Module):
                     kernel_size= kernel_size,
                     stride = stride,
                     padding = padding
-                ), 
+                ),
                 nn.MaxPool2d(
                     kernel_size = 2,
-                    stride = 2),
+                    stride = 2
+                ),
                 nn.LeakyReLU()
         )
 
@@ -136,18 +137,22 @@ class qValuePredictor(nn.Module):
         self,
         input : torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+
         x = self.encoder(input)
         x = torch.flatten(x)
         x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 8, 8)
+        x = x.view(-1, self.stored_channels, 2, 2)
         x = self.decoder(x)
 
         # max_val is the maximal value 
         # max_idx is the index of the point (where to travel to but not filtered)
-        max_q, max_idx = torch.max(torch.flatten(x))
-
+        max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
+        # print(max_q)
+        # print(max_idx)
+        
         return max_q, max_idx
     
+    # Find Q value function takes in the image inputs with different channels 
     def find_Q_value(
         self,
         input : torch.Tensor, #These are all the channels sent through the encoder-decoder,
@@ -156,10 +161,13 @@ class qValuePredictor(nn.Module):
         x = self.encoder(input)
         x = torch.flatten(x)
         x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 8, 8)
+        x = x.view(-1, self.stored_channels, 2, 2)
         x = self.decoder(x)
+        action_x = action[0].long()
+        action_y = action[1].long()
 
-        q_val = x[action[0], action[1]]
+        batch_indices = torch.arange(x.size(0), device='cuda:0').long()
+        q_val = x[batch_indices, 0, action_x, action_y]
         return q_val
     
     def find_loss(

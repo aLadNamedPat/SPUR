@@ -15,6 +15,7 @@ class ReplayBuffer:
         
     def sample(self):
         sampled_experiences = random.sample(self.memory, self.batch_size)
+
         states = torch.stack([exp[0] for exp in sampled_experiences]).to(device)
         actions = torch.stack([exp[1] for exp in sampled_experiences]).to(device)
         rewards = torch.stack([exp[2] for exp in sampled_experiences]).to(device)

@@ -19,7 +19,7 @@ class R_Learning:
         learning_start : int = 50,
         exploration_fraction : float = 0.2,
         exploration_initial : float = 1.0,
-        exploration_final : float = 0.02,
+        exploration_final : float = 0.05,
         episode_length : int = 1000,
         buffer_size : int = 100000,
         sample_batch_size : int = 32,
@@ -57,11 +57,12 @@ class R_Learning:
         self.p = 0
         self.current_step = 0
         self.current_time = 0
+        self.total_time = 0
         self.initiate = True
 
     def learn(
         self,
-        training_steps = 1000000
+        training_steps = 100000
     ) -> None:
         self.training_steps = training_steps
 
@@ -82,6 +83,7 @@ class R_Learning:
             self._last_obs = list(obs[0].values())
             self.initiate = False
             self.total_ep_reward = 0
+            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
 
         self.actor.train(False)
         num_collected_steps = 0
@@ -96,16 +98,22 @@ class R_Learning:
             new_obs, action, rewards = self.filter_dict(new_obs, action, rewards)
             self.replayBuffer.add(self._last_obs, action[0], rewards[0], list(new_obs[0].values()))
             self._last_obs = list(new_obs[0].values())
+            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+
             self.total_ep_reward += rewards[0]
             self.current_time += info['num_timesteps']
-            
+            self.total_time += info['num_timesteps']
+
             if self.current_time > self.episode_length:
                 obs, info = self.env.reset()
                 obs = self.filter_dict(obs)
                 self.last_obs = list(obs[0].values())
+                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+
                 self.current_time = 0
                 self.total_ep_reward = 0
             
+            print("Number of collected steps:", self.current_step)
             self.update_exploration_rate()
         
     # Implementation of R-Learning
@@ -144,10 +152,13 @@ class R_Learning:
         self,
     ):
         if self.current_step < self.learning_start:
-            action_ = [(int(random.random() * self.gridSize), int(random.random() * self.gridSize))]
+            action_ = [(self.agent_positions[0][0], self.agent_positions[0][1])]
+            # print(action_)
+            while ( action_[0][0] == self.agent_positions[0][0] and action_[0][1] == self.agent_positions[0][1] ):
+                action_ = [(int(random.random() * self.gridSize), int(random.random() * self.gridSize))]
         else:
             self._last_obs = np.array(self._last_obs)
-            last_obs = torch.tensor(self._last_obs, dtype = torch.float)
+            last_obs = torch.tensor(self._last_obs, dtype = torch.float).unsqueeze(0).to(device)
             action_ = self.predict(last_obs)
 
         return action_
@@ -156,10 +167,22 @@ class R_Learning:
         self,
         last_observation : torch.Tensor,
     ) -> torch.Tensor:
+        
         if random.random() < self.exploration_rate:
-            action = [(int(random.random() * self.gridSize), int(random.random() * self.gridSize))]
-        else:            
-            action = [(int(self.actor(last_observation)[1] / self.gridSize), self.actor(last_observation)[1] % self.gridSize)]
+            # print(self.total_time)
+            # print(self.training_steps)
+            # print(self.exploration_rate)
+            action = [(self.agent_positions[0][0], self.agent_positions[0][1])]
+            while ( action[0][0] == self.agent_positions[0][0] and action[0][1] == self.agent_positions[0][1] ):
+                action = [(int(random.random() * self.gridSize), int(random.random() * self.gridSize))]
+
+        else:
+            # print("here")
+            action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
+
+            # print(self.agent_positions[0])
+            # print(action)
+
         return action
 
     def should_collect_more(
@@ -172,10 +195,10 @@ class R_Learning:
     def update_exploration_rate(
         self,
     ) -> None:
-        if self.current_step / self.training_steps > self.exploration_fraction:
+        if self.total_time / self.training_steps > self.exploration_fraction:
             self.exploration_rate = self.exploration_final
         else:
-            self.exploration_rate = self.exploration_initial + (self.current_step / self.training_steps) * (self.exploration_final - self.exploration_initial) / (self.exploration_fraction)
+            self.exploration_rate = self.exploration_initial + (self.total_time / self.training_steps) * (self.exploration_final - self.exploration_initial) / (self.exploration_fraction)
     
     def action_to_env(
         self,
@@ -187,7 +210,7 @@ class R_Learning:
             new_actions[f"agent{i}"] = actions[i]
 
         return new_actions
-    
+
     def env_to_actions(
         self,
         actions : dict,

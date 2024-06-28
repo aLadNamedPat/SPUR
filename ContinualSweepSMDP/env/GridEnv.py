@@ -129,12 +129,14 @@ class GridEnv(ParallelEnv):
 
         trajectories = {f"agent{i}" : [(final[i][0], final[i][1])] for \
                                        i in range(len(self.possible_agents))}       # Save the trajectories of each agent
-
+        
         for i in range(len(self.possible_agents)):
             while(self.l_node[original_positions[f"agent{i}"], final_positions[f"agent{i}"]]):
                 final_positions[f"agent{i}"] = int(self.l_node[original_positions[f"agent{i}"], final_positions[f"agent{i}"]])
                 if final_positions[f"agent{i}"] != 0:
                     trajectories[f"agent{i}"] = [(int(final_positions[f"agent{i}"] / self.gridSize), final_positions[f"agent{i}"] % self.gridSize)] + trajectories[f"agent{i}"]
+            if original_positions[f"agent{i}"] == 0:
+                trajectories[f"agent{i}"] = [(0, 0)] + trajectories[f"agent{i}"]
             trajectories[f"agent{i}"] = trajectories[f"agent{i}"][1:]
 
         return (trajectories, total_dist) #Returns the expected reward, the trajectory taken, and the total distance of travel
@@ -196,7 +198,7 @@ class GridEnv(ParallelEnv):
         }
 
         info = {
-            f"agent{a}" : {} for a in range(self.numAgents)
+            "num_timesteps" : 0
         }        
 
         return observations, info
@@ -236,6 +238,7 @@ class GridEnv(ParallelEnv):
         
         trimmed_trajs = [traj[:int(dist[min_idx] + 1)] for traj in trajs.values()]    # Trim all trajectories to the shortest length
 
+        print(trimmed_trajs)
         self.curr_step += dist[min_idx]                             # Update the number of timesteps that are currently taken
         
         events = self.envGrid.multistep_timesteps(trimmed_trajs)    # Update the events that were detected by the agents

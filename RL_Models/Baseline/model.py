@@ -43,13 +43,13 @@ class qValuePredictor(nn.Module):
         self.encoder_decoder_linear = (
             nn.Sequential(
                 nn.Linear(
-                    in_features = hidden_dims[-1] * 128,
+                    in_features = hidden_dims[-1] * 4,
                     out_features = 500
                 ),
                 nn.LeakyReLU(),
                 nn.Linear(
                     in_features = 500,
-                    out_features=hidden_dims[-1] * 128
+                    out_features=hidden_dims[-1] * 4
                 ),
                 nn.LeakyReLU(),
             )
@@ -137,29 +137,54 @@ class qValuePredictor(nn.Module):
         self,
         input : torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-
+        batch_size, num_channels, w, h = input.shape
         x = self.encoder(input)
-        x = torch.flatten(x)
+        x = x.view(batch_size, -1)
         x = self.encoder_decoder_linear(x)
         x = x.view(-1, self.stored_channels, 2, 2)
         x = self.decoder(x)
+
+        positions = torch.argwhere(input)
+        # max_val is the maximal value 
+        # max_idx is the index of the point (where to travel to but not filtered)
+        max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
+        # print(max_q)
+        # print(max_idx)
+
+        return max_q, max_idx
+
+    def choose_travel(
+        self,
+        input : torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        batch_size, num_channels, w, h = input.shape
+        x = self.encoder(input)
+        x = x.view(batch_size, -1)
+        x = self.encoder_decoder_linear(x)
+        x = x.view(-1, self.stored_channels, 2, 2)
+        x = self.decoder(x)
+        
+        positions = torch.argwhere(input[0,2])
+
+        x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
 
         # max_val is the maximal value 
         # max_idx is the index of the point (where to travel to but not filtered)
         max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
         # print(max_q)
         # print(max_idx)
-        
+
         return max_q, max_idx
-    
+
     # Find Q value function takes in the image inputs with different channels 
     def find_Q_value(
         self,
         input : torch.Tensor, #These are all the channels sent through the encoder-decoder,
         action : tuple[int, int],
     ):
+        batch_size, num_channels, w, h = input.shape
         x = self.encoder(input)
-        x = torch.flatten(x)
+        x = x.view(batch_size, -1)
         x = self.encoder_decoder_linear(x)
         x = x.view(-1, self.stored_channels, 2, 2)
         x = self.decoder(x)

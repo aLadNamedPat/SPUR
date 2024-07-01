@@ -43,9 +43,9 @@ class GridEnv(ParallelEnv):
     def __reset_setup__(
         self,
     ) -> None:
-        
-        self.gridTracker = GridTracker(self.gridSize, self.bound)                        # Create a grid tracker for tracking events occurring at different locations
-        self.envGrid = GridWorld(self.gridSize, self.numCenters)                        # Create the actual grid environment
+        self.clock = None
+        self.gridTracker = GridTracker(self.gridSize, self.bound)               # Create a grid tracker for tracking events occurring at different locations
+        self.envGrid = GridWorld(self.gridSize, self.numCenters)                # Create the actual grid environment
 
         self.possible_agents = [f"agent{i}" for i in range(self.numAgents)]     # Set the possible agents for the PettingZoo environment
         self.agents = self.possible_agents[:]                                   # Set the agents for the PettingZoo environment
@@ -89,7 +89,7 @@ class GridEnv(ParallelEnv):
         for i in range(self.gridSize * self.gridSize):
             for j in range(self.gridSize * self.gridSize):
                 if i == j:
-                    self.l_node[i, j] = 0
+                    self.l_node[i, j] = -1
                 elif self.dist[i, j] != float("inf"):
                     self.l_node[i, j] = i
                 else:
@@ -131,12 +131,12 @@ class GridEnv(ParallelEnv):
                                        i in range(len(self.possible_agents))}       # Save the trajectories of each agent
         
         for i in range(len(self.possible_agents)):
-            while(self.l_node[original_positions[f"agent{i}"], final_positions[f"agent{i}"]]):
+            while(self.l_node[original_positions[f"agent{i}"], final_positions[f"agent{i}"]] != -1):
                 final_positions[f"agent{i}"] = int(self.l_node[original_positions[f"agent{i}"], final_positions[f"agent{i}"]])
-                if final_positions[f"agent{i}"] != 0:
+                if final_positions[f"agent{i}"] != -1:
                     trajectories[f"agent{i}"] = [(int(final_positions[f"agent{i}"] / self.gridSize), final_positions[f"agent{i}"] % self.gridSize)] + trajectories[f"agent{i}"]
-            if original_positions[f"agent{i}"] == 0:
-                trajectories[f"agent{i}"] = [(0, 0)] + trajectories[f"agent{i}"]
+            # if original_positions[f"agent{i}"] == 0:
+            #     trajectories[f"agent{i}"] = [(0, 0)] + trajectories[f"agent{i}"]
             trajectories[f"agent{i}"] = trajectories[f"agent{i}"][1:]
 
         return (trajectories, total_dist) #Returns the expected reward, the trajectory taken, and the total distance of travel
@@ -218,6 +218,7 @@ class GridEnv(ParallelEnv):
         rewards = {f"agent{i}" : 0 for i in range(self.numAgents)}
         self.agent_rewards = {i : 0 for i in range(self.numAgents)}
 
+        # print(actions)
         points = list(actions.values())                             # Actions of all agents (points to travel to)
         trajs, dist = self.compute_trajectory(points)               # Compute the trajectory of all agents
         dist = list(dist.values())                                  # Change the dictionary containing the information about distances to a list of values
@@ -238,7 +239,10 @@ class GridEnv(ParallelEnv):
         
         trimmed_trajs = [traj[:int(dist[min_idx] + 1)] for traj in trajs.values()]    # Trim all trajectories to the shortest length
 
-        print(trimmed_trajs)
+        # print(trimmed_trajs)
+        self.trajectories_traveled = trimmed_trajs                  # Save the trimmed trajectories to use later for rendering
+
+        # print(trimmed_trajs)
         self.curr_step += dist[min_idx]                             # Update the number of timesteps that are currently taken
         
         events = self.envGrid.multistep_timesteps(trimmed_trajs)    # Update the events that were detected by the agents
@@ -252,7 +256,7 @@ class GridEnv(ParallelEnv):
             else:
                 rewards[f"agent{i}"] = (self.saved_rewards[f"agent{i}"] / self.curr_step * (self.decision_steps[f"agent{i}"])
                     - self.last_saved_rewards[f"agent{i}"] * (self.decision_steps[f"agent{i}"] - 1) / (self.curr_step - dist[min_idx]))
-            
+
             # print(rewards)
             if i in min_idxs:
                 self.last_saved_rewards[f"agent{i}"] = self.saved_rewards[f"agent{i}"]
@@ -310,11 +314,29 @@ class GridEnv(ParallelEnv):
 
         return observations, rewards, terminations, truncations, info
     
-    def render(self):
-        if self.render_mode=="human":
-            self._render_frame()
+    def render(
+        self
+    ):
+        if self.render_mode == "Prob":
+            for i in range(len(self.trajectories_traveled[0])):
+                self._render_frame(i, 0)
 
-    def _render_frame(self):
+        elif self.render_mode == "Expected":
+            for i in range(len(self.trajectories_traveled[0])):
+                self._render_frame(i, 1)
+        
+        else:
+            for i in range(len(self.trajectories_traveled[0])):
+                self._render_frame(i, None)
+        
+
+
+    def _render_frame(
+        self, 
+        num_step,
+        heat_map = None,
+    ):
+        
         if self.window is None:
             pygame.init()
             pygame.display.init()
@@ -345,19 +367,43 @@ class GridEnv(ParallelEnv):
                 (0, self.pix_square_size * x),
                 (self.window_size, self.pix_square_size * x)
             )
+
+        for x in range(self.gridSize):
+            for y in range(self.gridSize):
+                if heat_map == 0:
+                    pygame.draw.rect(
+                        canvas,
+                        (255, 255 - self.gridTracker.prob_grid[x][y] * 100, 255 - self.gridTracker.prob_grid[x][y] * 100),
+                        pygame.Rect(self.pix_square_size * x,
+                                    self.pix_square_size * y,
+                                    self.pix_square_size,
+                                    self.pix_square_size)
+                    )
+                elif heat_map == 1:
+                    pygame.draw.rect(
+                        canvas,
+                        (255 , 255 - self.envGrid.e_grid[x][y] * 10, 255 - self.envGrid.e_grid[x][y] * 10),
+                        pygame.Rect(self.pix_square_size * x,
+                                    self.pix_square_size * y,
+                                    self.pix_square_size,
+                                    self.pix_square_size)
+
+                    )
         
         for a in range(self.numAgents):
             pygame.draw.rect(
                 canvas,
                 (255, 0, 0),
-                pygame.Rect(self.agent_positions[a][0], self.agent_positions[a][1], self.pix_square_size, self.pix_square_size)
+                pygame.Rect(self.trajectories_traveled[a][num_step][0] * self.pix_square_size, 
+                            self.trajectories_traveled[a][num_step][1] * self.pix_square_size, 
+                            self.pix_square_size,
+                            self.pix_square_size)
             )
 
         self.window.blit(canvas, canvas.get_rect())
         pygame.event.pump()
         pygame.display.update()
         self.clock.tick(4)
-        print("timestep rendered")
         #Add some gridlines that we are traveling through
 
     def observation_space(

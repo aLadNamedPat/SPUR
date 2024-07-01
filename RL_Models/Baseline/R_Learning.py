@@ -3,8 +3,11 @@ from model import qValuePredictor
 from buffer import ReplayBuffer
 import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+torch.cuda.empty_cache()
 
 class R_Learning:
 
@@ -15,11 +18,11 @@ class R_Learning:
         input_channels : int = 4,
         beta : int = 10,
         alpha : float = .5,
-        tau : int = 10,
+        tau : int = 100,
         learning_start : int = 50,
-        exploration_fraction : float = 0.2,
+        exploration_fraction : float = 0.4,
         exploration_initial : float = 1.0,
-        exploration_final : float = 0.05,
+        exploration_final : float = 0.1,
         episode_length : int = 1000,
         buffer_size : int = 100000,
         sample_batch_size : int = 32,
@@ -54,10 +57,12 @@ class R_Learning:
     def __initalize_hyperameters__(
         self
     ) -> None:
+        self.reward_eps = []
         self.p = 0
         self.current_step = 0
         self.current_time = 0
         self.total_time = 0
+        self.rollout_step = 0
         self.initiate = True
 
     def learn(
@@ -72,9 +77,11 @@ class R_Learning:
 
             if self.current_step > self.learning_start:
                 self.train()
+        self.reward_graph()
 
     def rollout(
         self,
+        count_method = "decision"
     ) -> None:
         
         if self.initiate:
@@ -88,34 +95,48 @@ class R_Learning:
         self.actor.train(False)
         num_collected_steps = 0
 
+        if count_method != "decision" and count_method != "timesteps":
+            return NameError("Need to specify a valid step counting method.")
+        
         while self.should_collect_more(self.train_freq, num_collected_steps):
             # print(self.current_time)
             self.current_step += 1
             num_collected_steps += 1
-            action = self.sample_action() #Gets the action stores from the last observed action
+            self.rollout_step += 1
+            action = self.sample_action() #Gets the action stores from the last observed action'
             action = self.action_to_env(action)
             new_obs, rewards, dones, _, info = self.env.step(action)
             new_obs, action, rewards = self.filter_dict(new_obs, action, rewards)
             self.replayBuffer.add(self._last_obs, action[0], rewards[0], list(new_obs[0].values()))
             self._last_obs = list(new_obs[0].values())
             self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
-
             self.total_ep_reward += rewards[0]
             self.current_time += info['num_timesteps']
             self.total_time += info['num_timesteps']
 
-            if self.current_time > self.episode_length:
+            if count_method == "decision" and self.rollout_step > self.episode_length:
+                obs, info = self.env.reset()
+                obs = self.filter_dict(obs)
+                self._last_obs = list(obs[0].values())
+                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+                self.reward_eps.append(self.total_ep_reward)
+                self.current_time = 0
+                print("Total episode reward: ", self.total_ep_reward)
+                self.total_ep_reward = 0
+                self.rollout_step = 0
+            
+            elif count_method == "timesteps" and self.current_time > self.episode_length:
                 obs, info = self.env.reset()
                 obs = self.filter_dict(obs)
                 self.last_obs = list(obs[0].values())
                 self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
-
+                self.reward_eps.append(self.total_ep_reward)
                 self.current_time = 0
+                print("Total episode reward: ", self.total_ep_reward)
                 self.total_ep_reward = 0
-            
-            print("Number of collected steps:", self.current_step)
+            # print("Number of collected steps:", self.current_step)
             self.update_exploration_rate()
-        
+
     # Implementation of R-Learning
     def train(
         self,
@@ -128,21 +149,23 @@ class R_Learning:
             with torch.no_grad():
                 # Issue is that the result is non-flattened
                 q_max = self.target_actor.find_Q_value(next_obs, (self.actor.forward(next_obs)[1] // self.gridSize, self.actor.forward(next_obs)[1] % self.gridSize)) 
-                y = rewards - self.p + q_max
+                y = rewards.flatten() - self.p + q_max
             
             actions = (actions[:, 0], actions[:, 1])
+
             l = self.actor.find_loss(self.actor.find_Q_value(obs, actions), y)
             self.optimizer.zero_grad()
             l.backward()
             self.optimizer.step()
+            torch.cuda.empty_cache()
+            
+            with torch.no_grad():
+                delta = y - self.actor.find_Q_value(obs, actions)
+                condition = torch.abs(delta - self.actor.forward(obs)[0]) < self.beta
 
-            delta = y - self.actor.find_Q_value(obs, actions)
-
-            condition = torch.abs(delta - self.actor.forward(obs)[0]) < self.beta
-
-            if condition.any():
-                update_val = delta[condition].mean()
-                self.p = self.p + update_val * self.alpha
+                if condition.any():
+                    update_val = delta[condition].mean()
+                    self.p = self.p + update_val * self.alpha
             
         if self.current_step % self.tau == 0:
             self.target_actor.load_state_dict(self.actor.state_dict())
@@ -158,11 +181,12 @@ class R_Learning:
                 action_ = [(int(random.random() * self.gridSize), int(random.random() * self.gridSize))]
         else:
             self._last_obs = np.array(self._last_obs)
-            last_obs = torch.tensor(self._last_obs, dtype = torch.float).unsqueeze(0).to(device)
+            with torch.no_grad():
+                last_obs = torch.tensor(self._last_obs, dtype = torch.float).unsqueeze(0).to(device)
             action_ = self.predict(last_obs)
 
         return action_
-    
+
     def predict(
         self,
         last_observation : torch.Tensor,
@@ -178,7 +202,8 @@ class R_Learning:
 
         else:
             # print("here")
-            action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
+            with torch.no_grad():
+                action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
 
             # print(self.agent_positions[0])
             # print(action)
@@ -243,3 +268,10 @@ class R_Learning:
             return new_obs
         else:
             return new_obs, new_actions, new_rewards
+        
+
+    def reward_graph(
+        self,
+    ) -> None:
+        plt.plot(self.reward_eps, color = "red")
+        plt.show()

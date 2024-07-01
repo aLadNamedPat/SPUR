@@ -16,10 +16,11 @@ class ReplayBuffer:
     def sample(self):
         sampled_experiences = random.sample(self.memory, self.batch_size)
 
-        states = torch.stack([exp[0] for exp in sampled_experiences]).to(device)
-        actions = torch.stack([exp[1] for exp in sampled_experiences]).to(device)
-        rewards = torch.stack([exp[2] for exp in sampled_experiences]).to(device)
-        next_states = torch.stack([exp[3] for exp in sampled_experiences]).to(device)
+        with torch.no_grad():
+            states = torch.stack([exp[0] for exp in sampled_experiences]).to(device)
+            actions = torch.stack([exp[1] for exp in sampled_experiences]).to(device)
+            rewards = torch.stack([exp[2] for exp in sampled_experiences]).to(device)
+            next_states = torch.stack([exp[3] for exp in sampled_experiences]).to(device)
 
         return states, actions, rewards, next_states
 
@@ -31,10 +32,11 @@ class ReplayBuffer:
 
         state = np.array(state)
         next_state = np.array(next_state)
-        state = torch.tensor(state, dtype = torch.float).to(device)
-        action = torch.tensor(action, dtype = torch.float).to(device)
-        reward = torch.tensor([reward], dtype = torch.float).to(device)
-        next_state = torch.tensor(next_state, dtype = torch.float).to(device)
+        with torch.no_grad():
+            state = torch.tensor(state, dtype = torch.float)
+            action = torch.tensor(action, dtype = torch.float)
+            reward = torch.tensor([reward], dtype = torch.float)
+            next_state = torch.tensor(next_state, dtype = torch.float)
 
         self.memory.append((state, action, reward, next_state))
 

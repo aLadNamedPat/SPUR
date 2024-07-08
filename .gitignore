@@ -6,6 +6,7 @@ Baselines/Floyd-Warshall-Test.py
 
 RL_Models/Baseline/__pycache__
 RL_Models/Simple_Action/__pycache__
+RL_Models/Baseline/runs
 
 NoCommGrid/
 test.py

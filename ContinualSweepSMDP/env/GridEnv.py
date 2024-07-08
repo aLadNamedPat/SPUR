@@ -20,6 +20,7 @@ class GridEnv(ParallelEnv):
         num_centers : int = 5,
         max_timesteps : int = 1024, 
         bound : int = 5,
+        p_bound : float = 0.1,
         seed : int = None,
         agent_positions : list[tuple[int, int]] = None,
         ):
@@ -30,7 +31,7 @@ class GridEnv(ParallelEnv):
         self.numCenters = num_centers                                           # Set the number of centers of probability of events occuring
         self.max_timesteps = max_timesteps                                      # Set the max number of timesteps occurring
         self.render_mode = render_mode                                          # Set up the render mode of the agents
-
+        self.p_bound = p_bound                                                  # Set the max probability bound of event occurence
 
         if agent_positions is not None and len(agent_positions) == num_agents:
             self.agent_positions = agent_positions
@@ -45,15 +46,19 @@ class GridEnv(ParallelEnv):
     ) -> None:
         self.clock = None
         self.gridTracker = GridTracker(self.gridSize, self.bound)               # Create a grid tracker for tracking events occurring at different locations
-        self.envGrid = GridWorld(self.gridSize, self.numCenters)                # Create the actual grid environment
-
+        self.envGrid = GridWorld(self.gridSize, 
+                                 self.numCenters,
+                                 p_bounds = self.p_bound,
+                                 e_bounds = self.bound
+                                 )                                              # Create the actual grid environment
         self.possible_agents = [f"agent{i}" for i in range(self.numAgents)]     # Set the possible agents for the PettingZoo environment
         self.agents = self.possible_agents[:]                                   # Set the agents for the PettingZoo environment
         self.curr_step = 0                                                      # Current timestep of the environment
+        self.events_detected = 0                                                # Total number of events detected in an episode
 
         # Rendering variables
         self.pix_square_size = (                                                # Size of the square of the environment
-            64
+            40
         )
 
         self.window = None
@@ -198,7 +203,8 @@ class GridEnv(ParallelEnv):
         }
 
         info = {
-            "num_timesteps" : 0
+            "num_timesteps" : 0,
+            "events_detected" : self.events_detected,
         }        
 
         return observations, info
@@ -261,9 +267,9 @@ class GridEnv(ParallelEnv):
             if i in min_idxs:
                 self.last_saved_rewards[f"agent{i}"] = self.saved_rewards[f"agent{i}"]
                 self.saved_rewards[f"agent{i}"] = 0
-
+        
         terminations = {f"agent{a}": False for a in range(self.numAgents)}
-
+        
         truncations = {f"agent{a}": False for a in range(self.numAgents)}
 
         if self.curr_step > self.max_timesteps:
@@ -278,7 +284,6 @@ class GridEnv(ParallelEnv):
         for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
             events_tracked = events[i]
             d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
-            # print(d)
         er = d
         ep = e
         
@@ -305,10 +310,17 @@ class GridEnv(ParallelEnv):
             for a in range(len(self.agents))
         }
 
+        self.events_detected = 0
+        for event in events:
+            self.events_detected += sum(event)
+
         info = {
-            "num_timesteps" : dist[min_idx]
+            "num_timesteps" : dist[min_idx],
+            "events_detected" : self.events_detected,
         }
 
+        # print(dist[min_idx])
+        # print(self.events_detected)
         if self.render_mode != None:
             self.render()
 
@@ -325,6 +337,10 @@ class GridEnv(ParallelEnv):
             for i in range(len(self.trajectories_traveled[0])):
                 self._render_frame(i, 1)
         
+        elif self.render_mode == "Tracking":
+            for i in range(len(self.trajectories_traveled[0])):
+                self._render_frame(i, 2)
+
         else:
             for i in range(len(self.trajectories_traveled[0])):
                 self._render_frame(i, None)
@@ -346,6 +362,9 @@ class GridEnv(ParallelEnv):
 
         if self.clock is None:
             self.clock = pygame.time.Clock()
+
+        pygame.font.init()
+        font = pygame.font.Font(None, 24)
 
         canvas = pygame.Surface((self.window_size, self.window_size))
         canvas.fill((255, 255 ,255))
@@ -380,16 +399,48 @@ class GridEnv(ParallelEnv):
                                     self.pix_square_size)
                     )
                 elif heat_map == 1:
+                    value = self.envGrid.e_grid[x][y]
+                    color = (255, 255 - value * 10, 255 - value * 10)
+                    text = str(value)
+
                     pygame.draw.rect(
                         canvas,
-                        (255 , 255 - self.envGrid.e_grid[x][y] * 10, 255 - self.envGrid.e_grid[x][y] * 10),
+                        color,
                         pygame.Rect(self.pix_square_size * x,
                                     self.pix_square_size * y,
                                     self.pix_square_size,
                                     self.pix_square_size)
-
                     )
-        
+
+                    text_surface = font.render(text, True, (0, 0, 0))
+                    text_rect = text_surface.get_rect(center=(
+                        self.pix_square_size * x + self.pix_square_size // 2,
+                        self.pix_square_size * y + self.pix_square_size // 2
+                    ))
+                    canvas.blit(text_surface, text_rect)
+
+                elif heat_map == 2:
+                    value = self.gridTracker.tracked_grid[x][y]
+                    value = round(value, 1)  # Round to 1 decimal
+                    color = (255, 255 - value * 10, 255 - value * 10)
+                    text = str(value)
+
+
+                    pygame.draw.rect(
+                        canvas,
+                        color,
+                        pygame.Rect(self.pix_square_size * x,
+                                    self.pix_square_size * y,
+                                    self.pix_square_size,
+                                    self.pix_square_size)
+                    )
+                    text_surface = font.render(text, True, (0, 0, 0))
+                    text_rect = text_surface.get_rect(center=(
+                        self.pix_square_size * x + self.pix_square_size // 2,
+                        self.pix_square_size * y + self.pix_square_size // 2
+                    ))
+                    canvas.blit(text_surface, text_rect)
+
         for a in range(self.numAgents):
             pygame.draw.rect(
                 canvas,

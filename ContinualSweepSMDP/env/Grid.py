@@ -45,9 +45,8 @@ class GridTracker:
             return self.tracked_grid, self.prob_grid, self.agent_locations
     
         if observed_events == self.bound:
-            new_prob = self.prob_grid[point[0], point[1]] * 0.5 + \
-            (1 + (observed_events / (timestep - \
-            self.last_timestep_visited[point[0], point[1]]))) * 0.25  #Change this calculations later on, this is just a filler for now
+            new_prob = self.prob_grid[point[0], point[1]] * 0.8 + (observed_events / (timestep - \
+            self.last_timestep_visited[point[0], point[1]])) * 0.2  #Change this calculations later on, this is just a filler for now
         
         else:
             new_prob = self.prob_grid[point[0], point[1]] * 0.5 + \
@@ -55,7 +54,7 @@ class GridTracker:
             self.last_timestep_visited[point[0], point[1]]) * 0.5  
 
         self.adjust_grid(point, new_prob)
-        
+
         self.last_timestep_visited[point[0], point[1]] = timestep
 
         self.tracked_grid += self.prob_grid
@@ -79,12 +78,12 @@ class GridTracker:
         
         for i in range(len(observed_events)):
             if observed_events[i] == self.bound:
-                new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
-                (1 + (observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.25)  
+                new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.8 +
+                ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.2)  
                 #Change this calculations later on, this is just a filler for now
             else:
-                new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
-                observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.5)
+                new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.3 +
+                observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.7)
             # print("Current timestep:", timestep)
             # print("Last visited timestep", self.last_timestep_visited[points[i][0], points[i][1]])
             # print("New probability:", new_prob)

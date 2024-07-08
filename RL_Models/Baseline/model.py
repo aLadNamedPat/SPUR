@@ -1,6 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
+import torchvision
+
 
 class qValuePredictor(nn.Module):
     def __init__(
@@ -8,6 +11,7 @@ class qValuePredictor(nn.Module):
         in_channels : int,
         out_channels : int = 1,
         hidden_dims : list = [32, 16, 16],
+        writer : SummaryWriter = None,
     ) -> None:
         super(qValuePredictor, self).__init__()
 
@@ -15,6 +19,8 @@ class qValuePredictor(nn.Module):
         # First convolution changes image_size to floor((image_size + 2 * padding - kernel_size) // stride) + 1
         # Build a encoder-decoder architecture with maxpools in between and LeakyReLU as the activation function
 
+        self.writer = writer
+        self.step = 0
         self.encoder_store = []
 
         self.encoder_store.append(
@@ -43,7 +49,7 @@ class qValuePredictor(nn.Module):
         self.encoder_decoder_linear = (
             nn.Sequential(
                 nn.Linear(
-                    in_features = hidden_dims[-1] * 4,
+                    in_features = hidden_dims[-1] * 4, 
                     out_features = 500
                 ),
                 nn.LeakyReLU(),
@@ -80,7 +86,7 @@ class qValuePredictor(nn.Module):
                 out_channels,
                 5,
                 3,
-                2
+                3
             )
         )
 
@@ -119,16 +125,16 @@ class qValuePredictor(nn.Module):
         padding : int = 0,
     ) -> nn.Sequential:
         return nn.Sequential(
+            nn.Upsample(
+                scale_factor = 2,
+                mode = "nearest"
+            ),
             nn.ConvTranspose2d(
                 input_channels,
                 output_channels,
                 kernel_size=kernel_size,
                 stride = stride,
                 padding = padding
-            ),
-            nn.Upsample(
-                scale_factor = 2,
-                mode = "nearest"
             ),
             nn.LeakyReLU()
         )
@@ -137,7 +143,9 @@ class qValuePredictor(nn.Module):
         self,
         input : torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        
         batch_size, num_channels, w, h = input.shape
+
         x = self.encoder(input)
         x = x.view(batch_size, -1)
         x = self.encoder_decoder_linear(x)
@@ -164,10 +172,14 @@ class qValuePredictor(nn.Module):
         x = x.view(-1, self.stored_channels, 2, 2)
         x = self.decoder(x)
         
+        # print("Q_Values:", x)
         positions = torch.argwhere(input[0,2])
 
         x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
-
+        grid = torchvision.utils.make_grid(x)
+        if self.writer is not None:
+            self.writer.add_image("images", grid, self.step)
+            self.step += 1
         # max_val is the maximal value 
         # max_idx is the index of the point (where to travel to but not filtered)
         max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)

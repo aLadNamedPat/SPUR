@@ -9,7 +9,7 @@ from ContinualSweepSMDP.env.GridEnv import GridEnv
 
 gridSize = 8
 
-env = GridEnv(1, render_mode = None, grid_size = gridSize, num_centers = 3, max_timesteps = 1000, bound = 10)
-m = R_Learning(gridSize, env, episode_length = 100, beta = 1)
+env = GridEnv(1, render_mode = None, grid_size = gridSize, num_centers = 3, max_timesteps = 1000, bound = 3, original_outputs=True)
+m = R_Learning(gridSize, env, input_channels=2,episode_length = 50, beta = 0.05)
 
-m.learn(50000)
+m.learn(200000)

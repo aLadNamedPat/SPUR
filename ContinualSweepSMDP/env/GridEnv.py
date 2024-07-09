@@ -23,6 +23,7 @@ class GridEnv(ParallelEnv):
         p_bound : float = 0.1,
         seed : int = None,
         agent_positions : list[tuple[int, int]] = None,
+        original_outputs : bool = False
         ):
 
         self.gridSize = grid_size                                               # Set the grid size of the environment
@@ -32,6 +33,7 @@ class GridEnv(ParallelEnv):
         self.max_timesteps = max_timesteps                                      # Set the max number of timesteps occurring
         self.render_mode = render_mode                                          # Set up the render mode of the agents
         self.p_bound = p_bound                                                  # Set the max probability bound of event occurence
+        self.original_outputs = original_outputs                                # If true, then use the original outputs provided by the paper
 
         if agent_positions is not None and len(agent_positions) == num_agents:
             self.agent_positions = agent_positions
@@ -45,7 +47,10 @@ class GridEnv(ParallelEnv):
         self,
     ) -> None:
         self.clock = None
-        self.gridTracker = GridTracker(self.gridSize, self.bound)               # Create a grid tracker for tracking events occurring at different locations
+        self.gridTracker = GridTracker(self.gridSize, 
+                                       self.bound,
+                                       original = self.original_outputs)        # Create a grid tracker for tracking events occurring at different locations
+        
         self.envGrid = GridWorld(self.gridSize, 
                                  self.numCenters,
                                  p_bounds = self.p_bound,
@@ -174,38 +179,70 @@ class GridEnv(ParallelEnv):
         ap = [] #Store the other agent positions
         op = [] #Store the agent's own position
 
-        for a in range(len(self.agents)):
-            d, e, f = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
-        er = d
-        ep = e
 
-        for i in range(self.numAgents):
-            ap.append(f)
+        if not self.original_outputs:           # New output used here as opposed to old one
+            for a in range(len(self.agents)):
+                d, e, f = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
+            er = d
+            ep = e
 
-        # Remove the agent's own position from its own position list
-        for i in range(len(ap)):
-            ap[i][self.agent_positions[i][0], self.agent_positions[i][1]] = 0
-            opo = np.zeros(ap[i].shape)
-            opo[self.agent_positions[i][0], self.agent_positions[i][1]] = 1
-            op.append(opo)
+            for i in range(self.numAgents):
+                ap.append(f)
 
-        observations = {
-            f"agent{a}" : { 
-                "observation" : {
-                    "eReward" : er,         # Estimated expected reward of the map
-                    "pGrid" : ep,           # Probabiity grid of the map
-                    "agent" : op[a],        # Gridspace of where the agent is located
-                    "other_agents" : ap[a], # Gridspace where other agents are located
-                },
-                "agent_mask" : agent_mask[a]
+            # Remove the agent's own position from its own position list
+            for i in range(len(ap)):
+                ap[i][self.agent_positions[i][0], self.agent_positions[i][1]] = 0
+                opo = np.zeros(ap[i].shape)
+                opo[self.agent_positions[i][0], self.agent_positions[i][1]] = 1
+                op.append(opo)
+
+            observations = {
+                f"agent{a}" : { 
+                    "observation" : {
+                        "eReward" : er,         # Estimated expected reward of the map
+                        "pGrid" : ep,           # Probabiity grid of the map
+                        "agent" : op[a],        # Gridspace of where the agent is located
+                        "other_agents" : ap[a], # Gridspace where other agents are located
+                    },
+                    "agent_mask" : agent_mask[a]
+                }
+                for a in range(len(self.agents))
             }
-            for a in range(len(self.agents))
-        }
 
-        info = {
-            "num_timesteps" : 0,
-            "events_detected" : self.events_detected,
-        }        
+            info = {
+                "num_timesteps" : 0,
+                "events_detected" : self.events_detected,
+            }        
+        
+        else:                                   # Original paper output
+            for a in range(len(self.agents)):
+                d, e = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
+
+            pd = d                             #Storing the poisson distribution
+            
+            for i in range(self.numAgents):
+                ap.append(e)
+
+            # Remove the agent's own position from its own position list
+            for i in range(len(ap)):
+                ap[i][self.agent_positions[i][0], self.agent_positions[i][1]] = 0
+                opo = np.zeros(ap[i].shape)
+                opo[self.agent_positions[i][0], self.agent_positions[i][1]] = 1
+                op.append(opo)
+
+            observations = {
+                f"agent{a}" : {
+                    "observation" : {
+                        "EventUncertainty" : pd,
+                        "RobotPosition" : op[a],
+                    }
+                }
+            }
+
+            info = {
+                "num_timesteps" : 0,
+                "events_detected" : self.events_detected,
+            }
 
         return observations, info
     
@@ -280,43 +317,82 @@ class GridEnv(ParallelEnv):
         
         op = [] #Store the agent's own positions
         ap = [] #Store the other agent's positions
-        for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
-            events_tracked = events[i]
-            d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
-        er = d
-        ep = e
         
-        for i in range(self.numAgents):
-            ap.append(f)
+        if not self.original_outputs:
 
-        # Remove the agent's own position from its own position list
-        for i in range(len(ap)):
-            ap[i][self.agent_positions[i][0], self.agent_positions[i][1]] = 0
-            opo = np.zeros(ap[i].shape)
-            opo[self.agent_positions[i][0], self.agent_positions[i][1]] = 1
-            op.append(opo)
-        
-        observations = { #Doesn't save the timestep that events occur intrinsicly
-            f"agent{a}" : {
-                "observation" : {
-                    "eReward" : er / self.bound, #Estimated expected reward of the map
-                    "pGrid" : ep, #Probabiity grid that the agents are tracking
-                    "agent" : op[a], #Gridspace of where the agent is located
-                    "other_agents" : ap[a], #Gridspace of where other agents are located
-                },
-                "action_mask" : agent_mask[a] #If agent_mask is not None, then that action must be chosen, otherwise a new action is taken
+            for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
+                events_tracked = events[i]
+                d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
+            er = d
+            ep = e
+            
+            for i in range(self.numAgents):
+                ap.append(f)
+
+            # Remove the agent's own position from its own position list
+            for i in range(len(ap)):
+                ap[i][self.agent_positions[i][0], self.agent_positions[i][1]] = 0
+                opo = np.zeros(ap[i].shape)
+                opo[self.agent_positions[i][0], self.agent_positions[i][1]] = 1
+                op.append(opo)
+
+            observations = { #Doesn't save the timestep that events occur intrinsicly
+                f"agent{a}" : {
+                    "observation" : {
+                        "eReward" : er / self.bound, #Estimated expected reward of the map
+                        "pGrid" : ep, #Probabiity grid that the agents are tracking
+                        "agent" : op[a], #Gridspace of where the agent is located
+                        "other_agents" : ap[a], #Gridspace of where other agents are located
+                    },
+                    "action_mask" : agent_mask[a] #If agent_mask is not None, then that action must be chosen, otherwise a new action is taken
+                }
+                for a in range(len(self.agents))
             }
-            for a in range(len(self.agents))
-        }
 
-        self.events_detected = 0
-        for event in events:
-            self.events_detected += sum(event)
+            self.events_detected = 0
+            for event in events:
+                self.events_detected += sum(event)
 
-        info = {
-            "num_timesteps" : dist[min_idx],
-            "events_detected" : self.events_detected,
-        }
+            info = {
+                "num_timesteps" : dist[min_idx],
+                "events_detected" : self.events_detected,
+            }
+        
+        else:
+            for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
+                events_tracked = events[i]
+                d, e = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
+            pd = d
+
+            for i in range(self.numAgents):
+                ap.append(e)
+
+            # Remove the agent's own position from its own position list
+            for i in range(len(ap)):
+                ap[i][self.agent_positions[i][0], self.agent_positions[i][1]] = 0
+                opo = np.zeros(ap[i].shape)
+                opo[self.agent_positions[i][0], self.agent_positions[i][1]] = 1
+                op.append(opo)
+
+            observations = {
+                f"agent{a}" : {
+                    "observation" : {
+                        "EventUncertainty" : pd,
+                        "RobotPosition" : op[a]
+                    },
+                "action_mask" : agent_mask[a]
+                }
+                for a in range(len(self.agents))
+            }
+
+            self.events_detected = 0
+            for event in events:
+                self.events_detected += sum(event)
+
+            info = {
+                "num_timesteps" : dist[min_idx],
+                "events_detected" : self.events_detected,
+            }
 
         # print(dist[min_idx])
         # print(self.events_detected)

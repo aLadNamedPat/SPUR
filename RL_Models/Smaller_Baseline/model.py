@@ -39,7 +39,7 @@ class qValuePredictor(nn.Module):
                         kernel_size = 3,
                         padding = 1
                     ),
-                    nn.LeakyReLU()
+                    nn.ReLU()
                 )
             )
 
@@ -49,12 +49,12 @@ class qValuePredictor(nn.Module):
                     in_features = hidden_dims[-1] * 25, 
                     out_features = 500
                 ),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.Linear(
                     in_features = 500,
                     out_features=hidden_dims[-1] * 25
                 ),
-                nn.LeakyReLU(),
+                nn.ReLU(),
             )
         )
 
@@ -73,7 +73,7 @@ class qValuePredictor(nn.Module):
                         kernel_size=3,
                         padding = 1,
                     ),
-                    nn.LeakyReLU()
+                    nn.ReLU(),
                 )
             )
 
@@ -106,7 +106,7 @@ class qValuePredictor(nn.Module):
                     stride = stride,
                     padding = padding
                 ),
-                nn.LeakyReLU(),
+                nn.ReLU(),
                 nn.MaxPool2d(
                     kernel_size = 2,
                     stride = 2
@@ -126,7 +126,7 @@ class qValuePredictor(nn.Module):
                 scale_factor = 2,
                 mode = "nearest"
             ),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             nn.ConvTranspose2d(
                 input_channels,
                 output_channels,
@@ -169,21 +169,26 @@ class qValuePredictor(nn.Module):
         x = x.view(-1, self.stored_channels, 5, 5)
         x = self.decoder(x)
         
-        # print("Q_Values:", x)
-        positions = torch.argwhere(input[0,2])
+        # print("Q_Values:", x) 
+        positions = torch.argwhere(input[0,1])
 
         x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
 
-        if self.step % 50 == 0:
+        if self.step % 500 == 0:
             input = input.squeeze()
             a = x.flatten()
             x_normalized = ((x - torch.kthvalue(a, 2)[0])/ (x.max() - torch.kthvalue(a, 2)[0]) * 255).squeeze()
             x_normalized[torch.argmin(x_normalized) // 8, torch.argmin(x_normalized) % 8] = 0
+
             wandb.log({"Decoder Output" : [wandb.Image(x_normalized.squeeze(), caption=f"Decoded")]})
+            wandb.log({"Poisson Distribution" : [wandb.Image(input[0], caption=f"Probability no event occurred there")]})
 
-            wandb.log({"Expected Reward" : [wandb.Image(input[0], caption=f"Tracked expectation")]})
+            wandb.log({"Agent Location" : [wandb.Image(input[1], caption=f"Location")]})
 
-            wandb.log({"Probability Grid" : [wandb.Image(input[1], caption=f"Tracked probability")]})
+            # wandb.log({"Expected Reward" : [wandb.Image(input[0], caption=f"Tracked expectation")]})
+
+            # wandb.log({"Probability Grid" : [wandb.Image(input[1], caption=f"Tracked probability")]})
+            # wandb.log({"Agent Position" : [wandb.Image(input[2], caption=f"Agent Position")]})
             # wandb.log({"Probability Map" : [wandb.Image(input)]})
         self.step += 1
 

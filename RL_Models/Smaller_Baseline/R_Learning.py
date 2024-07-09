@@ -30,9 +30,9 @@ class R_Learning:
         gridSize : int,
         env,
         input_channels : int = 4,
-        beta : int = 10,
-        alpha : float = .01,
-        tau : int = 100,
+        beta : int = 1,
+        alpha : float = .005,
+        tau : int = 200,
         learning_start : int = 50,
         exploration_fraction : float = 0.4,
         exploration_initial : float = 0.8,
@@ -41,15 +41,15 @@ class R_Learning:
         buffer_size : int = 100000,
         sample_batch_size : int = 32,
         gradient_steps : int = 1,
-        lr : float = 0.0001,
+        lr : float = 0.0005,
         train_freq : int = 1,
     ) -> None:
 
         self.env = env
         self.gridSize = gridSize
         # self.writer = SummaryWriter()
-        self.actor = qValuePredictor(input_channels, 1, [32, 16, 16]).to(device)
-        self.target_actor = qValuePredictor(input_channels ,1, [32, 16, 16]).to(device)
+        self.actor = qValuePredictor(input_channels, 1, [64, 32, 32]).to(device)
+        self.target_actor = qValuePredictor(input_channels ,1, [64, 32, 32]).to(device)
 
         self.optimizer = torch.optim.Adam(self.actor.parameters(), lr = lr)
 
@@ -105,7 +105,7 @@ class R_Learning:
             self._last_obs = list(obs[0].values())
             self.initiate = False
             self.total_ep_reward = 0
-            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+            self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
 
         self.actor.train(False)
         num_collected_steps = 0
@@ -126,7 +126,7 @@ class R_Learning:
 
             self.replayBuffer.add(self._last_obs, action[0], rewards[0], list(new_obs[0].values()))
             self._last_obs = list(new_obs[0].values())
-            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+            self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
             self.total_ep_reward += info["events_detected"]
             self.current_time += info['num_timesteps']
             self.total_time += info['num_timesteps']
@@ -135,7 +135,7 @@ class R_Learning:
                 obs, info = self.env.reset()
                 obs = self.filter_dict(obs)
                 self._last_obs = list(obs[0].values())
-                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+                self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
                 self.reward_eps.append(self.total_ep_reward)
                 wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
                 self.current_time = 0
@@ -146,7 +146,7 @@ class R_Learning:
                 obs, info = self.env.reset()
                 obs = self.filter_dict(obs)
                 self.last_obs = list(obs[0].values())
-                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+                self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
                 self.reward_eps.append(self.total_ep_reward)
                 print("Total episode reward: ", self.total_ep_reward / self.current_time)
                 self.current_time = 0
@@ -184,11 +184,16 @@ class R_Learning:
                 if condition.any():
                     update_val = delta[condition].mean()
                     self.p = self.p + update_val * self.alpha
+                    a =  y.mean().item()
+                    b = (q_max - self.actor.find_Q_value(obs, actions)).mean().item()
+                    wandb.log({"rewards sampled" : rewards.flatten().mean().item()})
+                    wandb.log({"q_max" : q_max.mean().item()})
+                    wandb.log({"y value" : a})
+                    wandb.log({"q_max - q value" : b})
                     wandb.log({"p value" : self.p})
                     
         if self.current_step % self.tau == 0:
             self.target_actor.load_state_dict(self.actor.state_dict())
-
 
     def sample_action(
         self,

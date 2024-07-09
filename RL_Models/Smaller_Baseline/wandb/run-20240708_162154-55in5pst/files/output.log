@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 121, in rollout
+    action = self.sample_action() #Gets the action stores from the last observed action'
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 203, in sample_action
+    action_ = self.predict(last_obs)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 223, in predict
+    action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/model.py", line 177, in choose_travel
+    if self.writer is not None and self.step % 10 == 0:
+  File "/home/patrick/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1688, in __getattr__
+    raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+AttributeError: 'qValuePredictor' object has no attribute 'writer'
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 121, in rollout
+    action = self.sample_action() #Gets the action stores from the last observed action'
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 203, in sample_action
+    action_ = self.predict(last_obs)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 223, in predict
+    action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/model.py", line 177, in choose_travel
+    if self.writer is not None and self.step % 10 == 0:
+  File "/home/patrick/.local/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1688, in __getattr__
+    raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+AttributeError: 'qValuePredictor' object has no attribute 'writer'

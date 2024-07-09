@@ -1,0 +1,1 @@
+{"Decoder Output": {"_type": "images/separated", "width": 20, "height": 20, "format": "png", "count": 1, "filenames": ["media/images/Decoder Output_7742_175c6784a8ef65edad8e.png"], "captions": ["Noisy Image"]}, "_timestamp": 1720464605.4933674, "_runtime": 1752.2568805217743, "_step": 7742, "detections per timestep": 0.7916207276736494, "_wandb": {"runtime": 1752}}

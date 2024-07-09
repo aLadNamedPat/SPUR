@@ -4,11 +4,24 @@ from buffer import ReplayBuffer
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
+import wandb
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 torch.cuda.empty_cache()
+
+wandb.init(
+    # set the wandb project where this run will be logged
+    project="RL-Modeling",
+
+    # track hyperparameters and run metadata
+    config={
+    "learning_rate": 0.0005,
+    "architecture": "Encoder-Decoder",
+    "batch_size" : 32,
+    }
+)
 
 class R_Learning:
 
@@ -19,10 +32,10 @@ class R_Learning:
         input_channels : int = 4,
         beta : int = 10,
         alpha : float = .01,
-        tau : int = 1000,
+        tau : int = 100,
         learning_start : int = 50,
         exploration_fraction : float = 0.4,
-        exploration_initial : float = 1.0,
+        exploration_initial : float = 0.8,
         exploration_final : float = 0.1,
         episode_length : int = 1000,
         buffer_size : int = 100000,
@@ -34,9 +47,9 @@ class R_Learning:
 
         self.env = env
         self.gridSize = gridSize
-        self.writer = SummaryWriter()
-        self.actor = qValuePredictor(input_channels, 1, [32, 16, 16], self.writer).to(device)
-        self.target_actor = qValuePredictor(input_channels ,1, [32, 16, 16], self.writer).to(device)
+        # self.writer = SummaryWriter()
+        self.actor = qValuePredictor(input_channels, 1, [32, 16, 16]).to(device)
+        self.target_actor = qValuePredictor(input_channels ,1, [32, 16, 16]).to(device)
 
         self.optimizer = torch.optim.Adam(self.actor.parameters(), lr = lr)
 
@@ -122,7 +135,7 @@ class R_Learning:
                 self._last_obs = list(obs[0].values())
                 self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
                 self.reward_eps.append(self.total_ep_reward)
-                print("Total episode reward: ", self.total_ep_reward / self.current_time)
+                wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
                 self.current_time = 0
                 self.total_ep_reward = 0
                 self.rollout_step = 0
@@ -136,6 +149,7 @@ class R_Learning:
                 print("Total episode reward: ", self.total_ep_reward / self.current_time)
                 self.current_time = 0
                 self.total_ep_reward = 0
+
             # print("Number of collected steps:", self.current_step)
             self.update_exploration_rate()
 
@@ -154,7 +168,7 @@ class R_Learning:
                 y = rewards.flatten() - self.p + q_max
             
             actions = (actions[:, 0], actions[:, 1])
-
+            
             l = self.actor.find_loss(self.actor.find_Q_value(obs, actions), y)
             self.optimizer.zero_grad()
             l.backward()
@@ -168,7 +182,8 @@ class R_Learning:
                 if condition.any():
                     update_val = delta[condition].mean()
                     self.p = self.p + update_val * self.alpha
-
+                    wandb.log({"p value" : self.p})
+                    
         if self.current_step % self.tau == 0:
             self.target_actor.load_state_dict(self.actor.state_dict())
 

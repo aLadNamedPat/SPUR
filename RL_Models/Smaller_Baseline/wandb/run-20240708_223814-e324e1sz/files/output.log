@@ -1,0 +1,36 @@
+tensor([0.2026, 0.1932, 0.1982, 0.1878, 0.1883, 0.1901, 0.1844, 0.1927, 0.1954,
+        0.1823, 0.1820, 0.1728, 0.1730, 0.1782, 0.1702, 0.2010, 0.2081, 0.1978,
+        0.1964, 0.1818, 0.1798, 0.1893, 0.1825, 0.2046, 0.1994, 0.2046, 0.2029,
+        0.1761, 0.1722, 0.1805, 0.1758, 0.2047, 0.1955, 0.1958, 0.1969, 0.1787,
+        0.1813, 0.1856, 0.1778, 0.2136, 0.1920, 0.1851,   -inf, 0.1982, 0.2032,
+        0.1987, 0.1923, 0.2303, 0.1929, 0.1931, 0.1998, 0.2038, 0.2020, 0.2006,
+        0.2031, 0.2355, 0.1201, 0.1444, 0.1519, 0.1548, 0.1488, 0.1480, 0.1447,
+        0.1712], device='cuda:0')
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 121, in rollout
+    action = self.sample_action() #Gets the action stores from the last observed action'
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 205, in sample_action
+    action_ = self.predict(last_obs)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 225, in predict
+    action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/model.py", line 180, in choose_travel
+    x_normalized = (x - torch.kthvalue(a, 2))/ (x.max() - torch.kthvalue(a, 2))
+TypeError: unsupported operand type(s) for -: 'Tensor' and 'torch.return_types.kthvalue'
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 121, in rollout
+    action = self.sample_action() #Gets the action stores from the last observed action'
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 205, in sample_action
+    action_ = self.predict(last_obs)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 225, in predict
+    action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/model.py", line 180, in choose_travel
+    x_normalized = (x - torch.kthvalue(a, 2))/ (x.max() - torch.kthvalue(a, 2))
+TypeError: unsupported operand type(s) for -: 'Tensor' and 'torch.return_types.kthvalue'

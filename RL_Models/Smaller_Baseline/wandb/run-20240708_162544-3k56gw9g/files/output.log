@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 124, in rollout
+    wandb.log({"Reward" : rewards[0]})
+KeyError: 0
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 124, in rollout
+    wandb.log({"Reward" : rewards[0]})
+KeyError: 0

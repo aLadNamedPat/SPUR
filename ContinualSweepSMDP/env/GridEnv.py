@@ -278,7 +278,6 @@ class GridEnv(ParallelEnv):
         else:
             truncate = False
         
-
         op = [] #Store the agent's own positions
         ap = [] #Store the other agent's positions
         for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
@@ -345,8 +344,7 @@ class GridEnv(ParallelEnv):
             for i in range(len(self.trajectories_traveled[0])):
                 self._render_frame(i, None)
         
-
-
+        
     def _render_frame(
         self, 
         num_step,

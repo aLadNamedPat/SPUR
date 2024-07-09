@@ -1,0 +1,128 @@
+{
+    "os": "Linux-6.5.0-41-generic-x86_64-with-glibc2.35",
+    "python": "3.10.12",
+    "heartbeatAt": "2024-07-09T02:39:39.598265",
+    "startedAt": "2024-07-09T02:39:39.223562",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py",
+    "codePathLocal": "main.py",
+    "codePath": "RL_Models/Smaller_Baseline/main.py",
+    "git": {
+        "remote": "https://github.com/aLadNamedPat/SPUR.git",
+        "commit": "25880957c188560f461d47ee39454b83f2919257"
+    },
+    "email": "Pattheboy135@gmail.com",
+    "root": "/home/patrick/Documents/SPUR",
+    "host": "patrick-Swift-SFX14-41G",
+    "username": "patrick",
+    "executable": "/usr/bin/python3",
+    "cpu_count": 8,
+    "cpu_count_logical": 16,
+    "cpu_freq": {
+        "current": 2.5650625000000002,
+        "min": 400.0,
+        "max": 4507.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 0.4,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 4.44,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 4.438,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 0.4,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 4.414,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 0.4,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 0.4,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 4.44,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 3.211,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 4.016,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 0.4,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 4.42,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 3.551,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 3.879,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 3.555,
+            "min": 400.0,
+            "max": 4507.0
+        },
+        {
+            "current": 3.552,
+            "min": 400.0,
+            "max": 4507.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 319.5916442871094,
+            "used": 132.2004737854004
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+            "memory_total": 4294967296
+        }
+    ],
+    "memory": {
+        "total": 14.969707489013672
+    }
+}

@@ -1,0 +1,26 @@
+torch.Size([1, 4, 8, 8])
+torch.Size([1, 4, 8, 8])
+torch.Size([1, 4, 8, 8])
+torch.Size([1, 4, 8, 8])
+torch.Size([1, 4, 8, 8])
+torch.Size([1, 4, 8, 8])
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 121, in rollout
+    action = self.sample_action() #Gets the action stores from the last observed action'
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 202, in sample_action
+    self._last_obs = np.array(self._last_obs)
+KeyboardInterrupt
+Traceback (most recent call last):
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/main.py", line 15, in <module>
+    m.learn(10000)
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 91, in learn
+    self.rollout()
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 121, in rollout
+    action = self.sample_action() #Gets the action stores from the last observed action'
+  File "/home/patrick/Documents/SPUR/RL_Models/Smaller_Baseline/R_Learning.py", line 202, in sample_action
+    self._last_obs = np.array(self._last_obs)
+KeyboardInterrupt

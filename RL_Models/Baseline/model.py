@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.tensorboard import SummaryWriter
 import torchvision
-
+import wandb
 
 class qValuePredictor(nn.Module):
     def __init__(
@@ -11,7 +10,6 @@ class qValuePredictor(nn.Module):
         in_channels : int,
         out_channels : int = 1,
         hidden_dims : list = [32, 16, 16],
-        writer : SummaryWriter = None,
     ) -> None:
         super(qValuePredictor, self).__init__()
 
@@ -19,7 +17,6 @@ class qValuePredictor(nn.Module):
         # First convolution changes image_size to floor((image_size + 2 * padding - kernel_size) // stride) + 1
         # Build a encoder-decoder architecture with maxpools in between and LeakyReLU as the activation function
 
-        self.writer = writer
         self.step = 0
         self.encoder_store = []
 
@@ -66,7 +63,6 @@ class qValuePredictor(nn.Module):
         hidden_dims.reverse()
         self.decoder_store = []
 
-
         for i in range(len(hidden_dims) - 1):
             self.decoder_store.append(
                 nn.Sequential(
@@ -109,11 +105,11 @@ class qValuePredictor(nn.Module):
                     stride = stride,
                     padding = padding
                 ),
+                nn.LeakyReLU(),
                 nn.MaxPool2d(
                     kernel_size = 2,
                     stride = 2
                 ),
-                nn.LeakyReLU()
         )
 
     def decoder_conv_layer(
@@ -129,6 +125,7 @@ class qValuePredictor(nn.Module):
                 scale_factor = 2,
                 mode = "nearest"
             ),
+            nn.LeakyReLU(),
             nn.ConvTranspose2d(
                 input_channels,
                 output_channels,
@@ -136,7 +133,6 @@ class qValuePredictor(nn.Module):
                 stride = stride,
                 padding = padding
             ),
-            nn.LeakyReLU()
         )
     
     def forward(
@@ -176,16 +172,20 @@ class qValuePredictor(nn.Module):
         positions = torch.argwhere(input[0,2])
 
         x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
-        grid = torchvision.utils.make_grid(x)
-        if self.writer is not None:
-            self.writer.add_image("images", grid, self.step)
-            self.step += 1
+        # grid = torchvision.utils.make_grid(x)
+        # if self.writer is not None and self.step % 10 == 0:
+        #     self.writer.add_image("images", grid, self.step)
+        #     self.writer.flush()
+
+        if self.step % 50 == 0:
+            wandb.log({"Decoder Output" : [wandb.Image(x, caption=f"Noisy Image")]})
+        self.step += 1
+        
         # max_val is the maximal value 
         # max_idx is the index of the point (where to travel to but not filtered)
         max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
         # print(max_q)
         # print(max_idx)
-
         return max_q, max_idx
 
     # Find Q value function takes in the image inputs with different channels 
@@ -205,6 +205,7 @@ class qValuePredictor(nn.Module):
 
         batch_indices = torch.arange(x.size(0), device='cuda:0').long()
         q_val = x[batch_indices, 0, action_x, action_y]
+
         return q_val
     
     def find_loss(
@@ -212,5 +213,7 @@ class qValuePredictor(nn.Module):
         reconstructed : torch.Tensor,
         actual : torch.Tensor,
     ) -> torch.Tensor:
+        
         l = F.smooth_l1_loss(reconstructed, actual)
+        
         return l

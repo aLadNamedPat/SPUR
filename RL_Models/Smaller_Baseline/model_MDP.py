@@ -44,52 +44,27 @@ class qValuePredictor(nn.Module):
                     nn.ReLU()
                 )
             )
-
-        self.encoder_decoder_linear = (
+        
+        self.linear_layer = (
             nn.Sequential(
                 nn.Linear(
-                    in_features = hidden_dims[-1] * 25, 
-                    out_features = 500,
+                    in_features= hidden_dims[-1] * 25,
+                    out_features = 200,
                 ),
                 nn.ReLU(),
                 nn.Linear(
-                    in_features = 500,
-                    out_features=hidden_dims[-1] * 25
+                    in_features = 200,
+                    out_features = 50,
                 ),
                 nn.ReLU(),
-            )
-        )
-
-        self.stored_channels = hidden_dims[-1]
-
-        hidden_dims.reverse()
-        self.decoder_store = []
-
-        for i in range(len(hidden_dims) - 1):
-            self.decoder_store.append(
-                nn.Sequential(
-                    nn.ConvTranspose2d(
-                        hidden_dims[i],
-                        hidden_dims[i + 1],
-                        kernel_size=3,
-                        padding = 1,
-                    ),
-                    nn.ReLU(),
+                nn.Linear(
+                    in_features = 50,
+                    out_features = 4,
                 )
-            )
-
-        self.decoder_store.append(
-            self.decoder_conv_layer(
-                hidden_dims[-1],
-                out_channels,
-                5,
-                1,
-                3
             )
         )
 
         self.encoder = nn.Sequential(*self.encoder_store)
-        self.decoder = nn.Sequential(*self.decoder_store)
 
     def encoder_conv_layer(
         self,
@@ -136,7 +111,21 @@ class qValuePredictor(nn.Module):
                 padding = padding
             ),
         )
-        
+    
+    # def reconstruction(
+    #     self,
+    #     input : torch.Tensor,
+    # ) -> tuple[torch.Tensor, torch.Tensor]:
+    #     batch_size, num_channels, w, h = input.shape
+
+    #     x = self.encoder(input)
+    #     x = x.view(batch_size, -1)
+    #     x = self.encoder_decoder_linear(x)
+    #     x = x.view(-1, self.stored_channels, 5, 5)
+    #     x = self.decoder2(x)
+
+    #     return x
+    
     def forward(
         self,
         input : torch.Tensor,
@@ -146,18 +135,16 @@ class qValuePredictor(nn.Module):
 
         x = self.encoder(input)
         x = x.view(batch_size, -1)
-        x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 5, 5)
-        x = self.decoder(x)
+        x = self.linear_layer(x)
 
-        positions = torch.argwhere(input)
-        # max_val is the maximal value 
-        # max_idx is the index of the point (where to travel to but not filtered)
-        max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
-        # print(max_q)
-        # print(max_idx)
+        max_q, action_taken = torch.max(x, dim = -1)
+        # # max_val is the maximal value 
+        # # max_idx is the index of the point (where to travel to but not filtered)
+        # max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
+        # # print(max_q)
+        # # print(max_idx)
 
-        return max_q, max_idx
+        return max_q, action_taken
 
     def choose_travel(
         self,
@@ -166,56 +153,30 @@ class qValuePredictor(nn.Module):
         batch_size, num_channels, w, h = input.shape
         x = self.encoder(input)
         x = x.view(batch_size, -1)
-        x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 5, 5)
-        x = self.decoder(x)
-        
-        # print("Q_Values:", x) 
-        positions = torch.argwhere(input[0,2])
+        x = self.linear_layer(x)
 
-        x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
-
-        if self.step % 500 == 0:
-            input = input.squeeze()
-            a = x.flatten()
-            x_normalized = ((x - torch.kthvalue(a, 2)[0])/ (x.max() - torch.kthvalue(a, 2)[0]) * 255).squeeze()
-            x_normalized[torch.argmin(x_normalized) // 8, torch.argmin(x_normalized) % 8] = 0
-
-            wandb.log({"Decoder Output" : [wandb.Image(x_normalized.squeeze(), caption=f"Decoded")]})
-            # wandb.log({"Poisson Distribution" : [wandb.Image(input[0], caption=f"Probability no event occurred there")]})
-
-            # wandb.log({"Agent Location" : [wandb.Image(input[1], caption=f"Location")]})
-            wandb.log({"Expected Reward" : [wandb.Image(input[0], caption=f"Tracked expectation")]})
-
-            wandb.log({"Probability Grid" : [wandb.Image(input[1], caption=f"Tracked probability")]})
-            wandb.log({"Agent Position" : [wandb.Image(input[2], caption=f"Agent Position")]})
-            # wandb.log({"Probability Map" : [wandb.Image(input)]})
-        self.step += 1
-
-        # max_val is the maximal value 
-        # max_idx is the index of the point (where to travel to but not filtered)
-        max_q, max_idx = torch.max(x.view(x.size(0), -1), dim = -1)
+        max_q, action_taken = torch.max(x, dim = -1)
         # print(max_q)
         # print(max_idx)
-        return max_q, max_idx
+        return max_q, action_taken
 
     # Find Q value function takes in the image inputs with different channels 
     def find_Q_value(
         self,
         input : torch.Tensor, #These are all the channels sent through the encoder-decoder,
-        action : tuple[int, int],
+        action : torch.Tensor,
     ):
         batch_size, num_channels, w, h = input.shape
         x = self.encoder(input)
         x = x.view(batch_size, -1)
-        x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 5, 5)
-        x = self.decoder(x)
-        action_x = action[0].long()
-        action_y = action[1].long()
+        x = self.linear_layer(x)
 
         batch_indices = torch.arange(x.size(0), device='cuda:0').long()
-        q_val = x[batch_indices, 0, action_x, action_y]
+        # print("Q Value found", x)
+        # print("Batch indices", batch_indices)
+        # print("Actions we are taking", action)
+        actions = action.long()
+        q_val = x[batch_indices, actions]
         return q_val
     
     def find_loss(
@@ -227,19 +188,19 @@ class qValuePredictor(nn.Module):
         wandb.log({"Loss over time" : l})
         return l
     
-    def reconstruction_loss(
-        self,
-        reconstructed : torch.Tensor,
-        actual : torch.Tensor,
-    ) -> torch.Tensor:
+    # def reconstruction_loss(
+    #     self,
+    #     reconstructed : torch.Tensor,
+    #     actual : torch.Tensor,
+    # ) -> torch.Tensor:
         
-        l = F.mse_loss(reconstructed, actual)
-        return l
+    #     l = F.mse_loss(reconstructed, actual)
+    #     return l
     
-    def degenerate_reconstruction_loss(
-        self,
-        actual : torch.Tensor,
-    ) -> torch.Tensor:
-        reconstructed = torch.full((actual.shape), 0.0).to(device)
-        l = F.mse_loss(reconstructed, actual)
-        return l
+    # def degenerate_reconstruction_loss(
+    #     self,
+    #     actual : torch.Tensor,
+    # ) -> torch.Tensor:
+    #     reconstructed = torch.full((actual.shape), 0.0).to(device)
+    #     l = F.mse_loss(reconstructed, actual)
+    #     return l

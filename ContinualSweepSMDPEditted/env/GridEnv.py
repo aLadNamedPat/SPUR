@@ -23,8 +23,7 @@ class GridEnv(ParallelEnv):
         p_bound : float = 0.1,
         seed : int = None,
         agent_positions : list[tuple[int, int]] = None,
-        original_outputs : bool = False,
-        degenerate_case : bool = False,
+        original_outputs : bool = False
         ):
 
         self.gridSize = grid_size                                               # Set the grid size of the environment
@@ -35,7 +34,6 @@ class GridEnv(ParallelEnv):
         self.render_mode = render_mode                                          # Set up the render mode of the agents
         self.p_bound = p_bound                                                  # Set the max probability bound of event occurence
         self.original_outputs = original_outputs                                # If true, then use the original outputs provided by the paper
-        self.degenerate_case = degenerate_case                                  # Degenerate case of providing observations
 
         if agent_positions is not None and len(agent_positions) == num_agents:
             self.agent_positions = agent_positions
@@ -44,6 +42,7 @@ class GridEnv(ParallelEnv):
         
         self.__reset_setup__()                                                  # Sets up all the environment features                             
         self._setup__()                                                         # Calculate all the trajectories
+
     def __reset_setup__(
         self,
     ) -> None:
@@ -57,6 +56,7 @@ class GridEnv(ParallelEnv):
                                  p_bounds = self.p_bound,
                                  e_bounds = self.bound
                                  )                                              # Create the actual grid environment
+        
         self.possible_agents = [f"agent{i}" for i in range(self.numAgents)]     # Set the possible agents for the PettingZoo environment
         self.agents = self.possible_agents[:]                                   # Set the agents for the PettingZoo environment
         self.curr_step = 0                                                      # Current timestep of the environment
@@ -137,7 +137,7 @@ class GridEnv(ParallelEnv):
                 self.gridSize + self.agent_positions[i][1],
                 final[i][0] * self.gridSize + final[i][1]
             ]                                                                       # Determine the distance that the agent has to travel from beginning to end
-        
+
         trajectories = {f"agent{i}" : [(final[i][0], final[i][1])] for \
                                        i in range(len(self.possible_agents))}       # Save the trajectories of each agent
         
@@ -149,9 +149,9 @@ class GridEnv(ParallelEnv):
             # if original_positions[f"agent{i}"] == 0:
             #     trajectories[f"agent{i}"] = [(0, 0)] + trajectories[f"agent{i}"]
             trajectories[f"agent{i}"] = trajectories[f"agent{i}"][1:]
-        # print("TRAJECTORY:", trajectories)
-        return (trajectories, total_dist) #Returns the expected reward, the trajectory taken, and the total distance of travel
 
+        return total_dist
+    
     # Generate the random positions of the agents when initiating
     def GSL(
         self
@@ -168,50 +168,21 @@ class GridEnv(ParallelEnv):
     def reset(
         self, 
         seed=None, 
+        options = None,
     ):
-        
+
         self.agents = copy(self.possible_agents)
         self.curr_step = 0
         agent_mask = [None for _ in range(self.num_agents)]
         self.agent_positions = self.GSL()
-        print(sum(sum(self.envGrid.get_p_grid())))
+
         self.__reset_setup__()
 
         ap = []                                 # Store the other agent positions
         op = []                                 # Store the agent's own position
 
 
-        if self.degenerate_case:
-            for a in range(len(self.agents)):
-                d, e, f = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
-            er = d
-            ep = e
-
-            for i in range(self.numAgents):
-                ap.append(f)
-
-            pd = self.envGrid.get_e_grid()
-            ad = self.envGrid.get_p_grid()
-
-            observations = {
-                f"agent{a}" : {
-                    "observation" : {
-                        "eReward" : pd,
-                        "pGrid" : ad,
-                        "agent" : ap[0],
-                    },
-                    "action_mask" : agent_mask[a]
-                }
-                for a in range(len(self.agents))
-            }
-
-            info = {
-                "num_timesteps" : 0,
-                "events_detected" : 0,
-            }        
-
-
-        if not self.original_outputs and not self.degenerate_case:           # New output used here as opposed to old one
+        if not self.original_outputs:           # New output used here as opposed to old one
             for a in range(len(self.agents)):
                 d, e, f = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
             er = d
@@ -245,7 +216,7 @@ class GridEnv(ParallelEnv):
                 "events_detected" : self.events_detected,
             }        
         
-        elif self.original_outputs and not self.degenerate_case: # Original paper output
+        else:                                   # Original paper output
             for a in range(len(self.agents)):
                 d, e = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
 
@@ -288,10 +259,13 @@ class GridEnv(ParallelEnv):
             self, 
             actions : Dict # Actions are going to be a dictionary of points the agents are going to travel to
         ):
+        
         rewards = {f"agent{i}" : 0 for i in range(self.numAgents)}
         self.agent_rewards = {i : 0 for i in range(self.numAgents)}
+
+        # print(actions)
         points = list(actions.values())                             # Actions of all agents (points to travel to)
-        trajs, dist = self.compute_trajectory(points)               # Compute the trajectory of all agents
+        dist = self.compute_trajectory(points)                      # Compute the trajectory of all agents
         dist = list(dist.values())                                  # Change the dictionary containing the information about distances to a list of values
         min_idx = min(enumerate(dist), key = lambda x : x[1])[0]    # Find the index of the minimum distance
 
@@ -308,29 +282,23 @@ class GridEnv(ParallelEnv):
                 non_min_idxs.append(i)
                 agent_mask[i] = points[i]
         
-        trimmed_trajs = [traj[:int(dist[min_idx] + 1)] for traj in trajs.values()]    # Trim all trajectories to the shortest length
-
-        # print(trimmed_trajs)
-        self.trajectories_traveled = trimmed_trajs                  # Save the trimmed trajectories to use later for rendering
-
         # print(trimmed_trajs)
         self.curr_step += dist[min_idx]                             # Update the number of timesteps that are currently taken
-        
-        events = self.envGrid.multistep_timesteps(trimmed_trajs)    # Update the events that were detected by the agents
 
+        events = self.envGrid.step(actions["agent0"])
         for i in range(len(self.agents)):
-            self.agent_positions[i] = trimmed_trajs[i][-1]
             # Reward as implemented here: https://arxiv.org/pdf/2006.00589 (page 4)
-            self.saved_rewards[f"agent{i}"] += sum(step[i] for step in events)
+            self.saved_rewards[f"agent{i}"] = events
             if self.decision_steps[f"agent{i}"] == 1:
                 rewards[f"agent{i}"] = 0
             else:
-                rewards[f"agent{i}"] = (self.saved_rewards[f"agent{i}"] / self.curr_step * (self.decision_steps[f"agent{i}"])
-                    - self.last_saved_rewards[f"agent{i}"] * (self.decision_steps[f"agent{i}"] - 1) / (self.curr_step - dist[min_idx]))
-
+                # rewards[f"agent{i}"] = (self.saved_rewards[f"agent{i}"] / self.curr_step * (self.decision_steps[f"agent{i}"])
+                #     - self.last_saved_rewards[f"agent{i}"] * (self.decision_steps[f"agent{i}"] - 1) / (self.curr_step - dist[min_idx]))
+                rewards[f"agent{i}"] = self.saved_rewards[f"agent{i}"] / dist[min_idx]
             # print(rewards)
             if i in min_idxs:
                 self.last_saved_rewards[f"agent{i}"] = self.saved_rewards[f"agent{i}"]
+                self.saved_rewards[f"agent{i}"] = 0
         
         terminations = {f"agent{a}": False for a in range(self.numAgents)}
         
@@ -345,47 +313,13 @@ class GridEnv(ParallelEnv):
         op = [] #Store the agent's own positions
         ap = [] #Store the other agent's positions
 
-        if self.degenerate_case:
-            for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
-                events_tracked = events[i]
-                d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
-            er = d
-            ep = e
-
-            for i in range(self.numAgents):
-                ap.append(f)
-
-            pd = self.envGrid.get_e_grid()
-            ad = self.envGrid.get_p_grid()
-
-            observations = {
-                f"agent{a}" : {
-                    "observation" : {
-                        "eReward" : pd,
-                        "pGrid" : ad,
-                        "agent" : ap[0],
-                    },
-                    "action_mask" : agent_mask[a]
-                }
-                for a in range(len(self.agents))
-            }
-            self.events_detected = 0
-            for event in events:
-                self.events_detected += sum(event)
-
-            info = {
-                "num_timesteps" : dist[min_idx],
-                "events_detected" : self.events_detected,
-            }
-
-        if not self.original_outputs and not self.degenerate_case:
-
-            for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
-                events_tracked = events[i]
-                d, e, f = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
+        self.agent_positions = [actions["agent0"]]
+        if not self.original_outputs:
+            d, e, f = self.gridTracker.update(actions["agent0"], events, self.curr_step)
             er = d
             ep = e
             
+
             for i in range(self.numAgents):
                 ap.append(f)
 
@@ -410,19 +344,14 @@ class GridEnv(ParallelEnv):
                 for a in range(len(self.agents))
             }
 
-            self.events_detected = 0
-            for event in events:
-                self.events_detected += sum(event)
-
+            self.events_detected = events
             info = {
                 "num_timesteps" : dist[min_idx],
                 "events_detected" : self.events_detected,
             }
         
-        elif self.original_outputs and not self.degenerate_case:
-            for i in range(len(trimmed_trajs[min_idx])): # Doesn't have to be min_idx here
-                events_tracked = events[i]
-                d, e = self.gridTracker.multi_update([trimmed_traj[i] for trimmed_traj in trimmed_trajs], events_tracked, self.curr_step - dist[min_idx] + i + 1)
+        else:
+            d, e, f = self.gridTracker.update(actions["agent0"], events, self.curr_step)
             pd = d
 
             for i in range(self.numAgents):
@@ -470,37 +399,7 @@ class GridEnv(ParallelEnv):
         op = []
         agent_mask = [None for _ in range(self.num_agents)]
 
-        if self.degenerate_case:
-            for a in range(len(self.agents)):
-                d, e, f = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
-            er = d
-            ep = e
-
-            for i in range(self.numAgents):
-                ap.append(f)
-
-            pd = self.envGrid.get_e_grid()
-            ad = self.envGrid.get_p_grid()
-
-            observations = {
-                f"agent{a}" : {
-                    "observation" : {
-                        "eReward" : pd,
-                        "pGrid" : ad,
-                        "agent" : ap[0],
-                    },
-                    "action_mask" : agent_mask[a]
-                }
-                for a in range(len(self.agents))
-            }
-
-            info = {
-                "num_timesteps" : 0,
-                "events_detected" : 0,
-            }        
-
-
-        if not self.original_outputs and not self.degenerate_case:           # New output used here as opposed to old one
+        if not self.original_outputs:
             for a in range(len(self.agents)):
                 d, e, f = self.gridTracker.update((self.agent_positions[a][0], self.agent_positions[a][1]), 0, 0)
             er = d
@@ -520,7 +419,7 @@ class GridEnv(ParallelEnv):
                 f"agent{a}" : { 
                     "observation" : {
                         "eReward" : er / self.bound,         # Estimated expected reward of the map
-                        "pGrid" : ep,           # Probabiity grid of the map
+                        "pGrid" : ep / ep.max(),           # Probabiity grid of the map
                         "agent" : op[a],        # Gridspace of where the agent is located
                         "other_agents" : ap[a], # Gridspace where other agents are located
                     },
@@ -532,33 +431,29 @@ class GridEnv(ParallelEnv):
             info = {
                 "num_timesteps" : 0,
                 "events_detected" : self.events_detected,
-            }        
-
+            }
+            
         return observations, info
     
     def render(
         self
     ):
         if self.render_mode == "Prob":
-            for i in range(len(self.trajectories_traveled[0])):
-                self._render_frame(i, 0)
+            self._render_frame(0, 0)
 
         elif self.render_mode == "Expected":
-            for i in range(len(self.trajectories_traveled[0])):
-                self._render_frame(i, 1)
+            self._render_frame(0, 1)
         
         elif self.render_mode == "Tracking":
-            for i in range(len(self.trajectories_traveled[0])):
-                self._render_frame(i, 2)
+            self._render_frame(0, 2)
 
         else:
-            for i in range(len(self.trajectories_traveled[0])):
-                self._render_frame(i, None)
+            self._render_frame(0, None)
         
         
     def _render_frame(
         self, 
-        num_step,
+        num_step = None,
         heat_map = None,
     ):
         
@@ -654,8 +549,8 @@ class GridEnv(ParallelEnv):
             pygame.draw.rect(
                 canvas,
                 (255, 0, 0),
-                pygame.Rect(self.trajectories_traveled[a][num_step][0] * self.pix_square_size, 
-                            self.trajectories_traveled[a][num_step][1] * self.pix_square_size, 
+                pygame.Rect(self.agent_positions[a][0] * self.pix_square_size, 
+                            self.agent_positions[a][1] * self.pix_square_size, 
                             self.pix_square_size,
                             self.pix_square_size)
             )

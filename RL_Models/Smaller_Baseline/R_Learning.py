@@ -1,4 +1,5 @@
 import torch
+# from model import qValuePredictor
 from model import qValuePredictor
 from buffer import ReplayBuffer
 import random
@@ -6,6 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 # from torch.utils.tensorboard import SummaryWriter
 import wandb
+import torchvision.utils as vutils
+import pickle
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -32,27 +35,32 @@ class R_Learning:
         input_channels : int = 4,
         beta : int = 1,
         alpha : float = .005,
-        tau : int = 200,
+        tau : int = 500,
         learning_start : int = 50,
-        exploration_fraction : float = 0.4,
-        exploration_initial : float = 0.8,
+        exploration_fraction : float = 0.2,
+        exploration_initial : float = 0.6,
         exploration_final : float = 0.1,
-        episode_length : int = 1000,
-        buffer_size : int = 100000,
+        episode_length : int = 50,
+        reset_steps : int = 1800,
+        buffer_size : int = 1000000,
         sample_batch_size : int = 32,
         gradient_steps : int = 1,
-        lr : float = 0.0005,
+        lr : float = 0.0001,
         train_freq : int = 1,
     ) -> None:
 
         self.env = env
         self.gridSize = gridSize
+        self.reset_steps = reset_steps
         # self.writer = SummaryWriter()
-        self.actor = qValuePredictor(input_channels, 1, [64, 32, 32]).to(device)
-        self.target_actor = qValuePredictor(input_channels ,1, [64, 32, 32]).to(device)
-
+        self.actor = qValuePredictor(input_channels, 1, [16, 16, 32]).to(device)
+        self.target_actor = qValuePredictor(input_channels ,1, [16, 16, 32]).to(device)
+        # encoder_and_decoder_params = list(self.actor.encoder.parameters()) + \
+        #                             list(self.actor.encoder_decoder_linear.parameters()) + \
+        #                             list(self.actor.decoder.parameters())
         self.optimizer = torch.optim.Adam(self.actor.parameters(), lr = lr)
 
+        # self.optimizer2 = torch.optim.Adam(self.actor.decoder2.parameters(), lr = lr)
         self.replayBuffer = ReplayBuffer(buffer_size, sample_batch_size)
         self.target_actor.load_state_dict(self.actor.state_dict())
 
@@ -105,7 +113,7 @@ class R_Learning:
             self._last_obs = list(obs[0].values())
             self.initiate = False
             self.total_ep_reward = 0
-            self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
+            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
 
         self.actor.train(False)
         num_collected_steps = 0
@@ -118,7 +126,7 @@ class R_Learning:
             self.current_step += 1
             num_collected_steps += 1
             self.rollout_step += 1
-            action = self.sample_action() #Gets the action stores from the last observed action'
+            action = self.sample_action() #Gets the action stores from the last observed action
             action = self.action_to_env(action)
             new_obs, rewards, dones, _, info = self.env.step(action)
             new_obs, action, rewards = self.filter_dict(new_obs, action, rewards)
@@ -126,29 +134,43 @@ class R_Learning:
 
             self.replayBuffer.add(self._last_obs, action[0], rewards[0], list(new_obs[0].values()))
             self._last_obs = list(new_obs[0].values())
-            self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
+            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
             self.total_ep_reward += info["events_detected"]
             self.current_time += info['num_timesteps']
             self.total_time += info['num_timesteps']
+            
+            wandb.log({"Events detected" : info["events_detected"]})
+            wandb.log({"Total timesteps" : self.current_time})
 
-            if count_method == "decision" and self.rollout_step > self.episode_length:
-                obs, info = self.env.reset()
+            # if count_method == "decision" and self.rollout_step > self.episode_length:
+            #     obs, info = self.env.reset()
+            #     obs = self.filter_dict(obs)
+            #     self._last_obs = list(obs[0].values())
+            #     self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+            #     self.reward_eps.append(self.total_ep_reward)
+            #     wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
+            #     self.current_time = 0
+            #     self.total_ep_reward = 0
+            #     self.rollout_step = 0
+
+            if count_method == "decision" and self.rollout_step > self.episode_length and self.current_step < self.reset_steps:
+                obs, info = self.env.reset_agent_positions()
                 obs = self.filter_dict(obs)
                 self._last_obs = list(obs[0].values())
-                self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
-                self.reward_eps.append(self.total_ep_reward)
+                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
                 wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
-                self.current_time = 0
-                self.total_ep_reward = 0
                 self.rollout_step = 0
+           
+            if count_method == "decision" and self.rollout_step > self.episode_length and self.current_step > self.reset_steps:
+                wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
 
             elif count_method == "timesteps" and self.current_time > self.episode_length:
                 obs, info = self.env.reset()
                 obs = self.filter_dict(obs)
-                self.last_obs = list(obs[0].values())
-                self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
+                self._last_obs = list(obs[0].values())
+                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
                 self.reward_eps.append(self.total_ep_reward)
-                print("Total episode reward: ", self.total_ep_reward / self.current_time)
+                # print("Total episode reward: ", self.total_ep_reward / self.current_time)
                 self.current_time = 0
                 self.total_ep_reward = 0
 
@@ -166,16 +188,32 @@ class R_Learning:
 
             with torch.no_grad():
                 # Issue is that the result is non-flattened
-                q_max = self.target_actor.find_Q_value(next_obs, (self.actor.forward(next_obs)[1] // self.gridSize, self.actor.forward(next_obs)[1] % self.gridSize)) 
+                q_max = self.target_actor.find_Q_value(next_obs, (self.actor.forward(next_obs)[1] // self.gridSize, self.actor.forward(next_obs)[1] % self.gridSize))
                 y = rewards.flatten() - self.p + q_max
             
             actions = (actions[:, 0], actions[:, 1])
-            
-            l = self.actor.find_loss(self.actor.find_Q_value(obs, actions), y)
+
+
+            # self.optimizer2.zero_grad()
+            # reconstruction = self.actor.reconstruction(obs)
+            # loss = self.actor.reconstruction_loss(reconstruction.squeeze(1), obs[:,0])
+            # loss.backward()
+            # self.optimizer2.step()
+            # torch.cuda.empty_cache()
+
+            # Log the first observation and reconstruction
+            # first_obs = vutils.make_grid(obs[0, 0].unsqueeze(0), normalize=True, scale_each=True)
+            # first_recon = vutils.make_grid(reconstruction[0].unsqueeze(0), normalize=True, scale_each=True)
+
+            # if self.current_step % 100 == 0:
+            #     wandb.log({
+            #         "First Observation": wandb.Image(first_obs.cpu()),
+            #         "First Reconstruction": wandb.Image(first_recon.cpu())
+            #     })
             self.optimizer.zero_grad()
+            l = self.actor.find_loss(self.actor.find_Q_value(obs, actions), y)
             l.backward()
             self.optimizer.step()
-            torch.cuda.empty_cache()
             
             with torch.no_grad():
                 delta = y - self.actor.find_Q_value(obs, actions)
@@ -183,15 +221,21 @@ class R_Learning:
 
                 if condition.any():
                     update_val = delta[condition].mean()
+
+                    update_val = (rewards.flatten() - self.p).mean()
                     self.p = self.p + update_val * self.alpha
                     a =  y.mean().item()
                     b = (q_max - self.actor.find_Q_value(obs, actions)).mean().item()
                     wandb.log({"rewards sampled" : rewards.flatten().mean().item()})
                     wandb.log({"q_max" : q_max.mean().item()})
                     wandb.log({"y value" : a})
-                    wandb.log({"q_max - q value" : b})
+                    wandb.log({"q max - q value" : b})
                     wandb.log({"p value" : self.p})
-                    
+                wandb.log({"Number of steps" : self.current_step})
+
+            if self.current_step % 10000 == 0:
+                self.replayBuffer.save_replay_buffer("replay_buffer.pkl.gz")
+                
         if self.current_step % self.tau == 0:
             self.target_actor.load_state_dict(self.actor.state_dict())
 
@@ -208,7 +252,6 @@ class R_Learning:
             with torch.no_grad():
                 last_obs = torch.tensor(self._last_obs, dtype = torch.float).unsqueeze(0).to(device)
             action_ = self.predict(last_obs)
-
         return action_
 
     def predict(
@@ -223,14 +266,10 @@ class R_Learning:
             action = [(self.agent_positions[0][0], self.agent_positions[0][1])]
             while ( action[0][0] == self.agent_positions[0][0] and action[0][1] == self.agent_positions[0][1] ):
                 action = [(int(random.random() * self.gridSize), int(random.random() * self.gridSize))]
-
         else:
-            # print("here")
             with torch.no_grad():
                 action = [(int(self.actor.choose_travel(last_observation)[1] / self.gridSize), int(self.actor.choose_travel(last_observation)[1] % self.gridSize))]
-
             # print(self.agent_positions[0])
-            # print(action)
 
         return action
 

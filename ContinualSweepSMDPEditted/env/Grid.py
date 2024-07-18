@@ -57,12 +57,14 @@ class GridTracker:
                 return self.tracked_grid, self.prob_grid, self.agent_locations
         
             if observed_events == self.bound:
-                new_prob = self.prob_grid[point[0], point[1]] * 0.8 + (observed_events / (timestep - \
-                self.last_timestep_visited[point[0], point[1]])) * 0.2  #Change this calculations later on, this is just a filler for now
+                new_prob = self.prob_grid[point[0], point[1]] * 0.9 + (observed_events / (timestep - \
+                self.last_timestep_visited[point[0], point[1]])) * 0.1  #Change this calculations later on, this is just a filler for now
             
             else:
                 new_prob = self.prob_grid[point[0], point[1]] * 0.9 + \
-                observed_events / (timestep - self.last_timestep_visited[point[0], point[1]]) * 0.1
+                observed_events / (timestep - \
+                self.last_timestep_visited[point[0], point[1]]) * 0.1
+
             self.adjust_grid(point, new_prob)
 
             self.last_timestep_visited[point[0], point[1]] = timestep
@@ -90,12 +92,12 @@ class GridTracker:
                 return saved_grid, self.agent_locations
             
             if observed_events[i] == self.bound:
-                new_prob = (self.prob_grid[point[i][0], point[i][1]] * 0.8 +
-                ((observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1] + 1]))) * 0.2)  
+                new_prob = (self.prob_grid[point[i][0], point[i][1]] * 0.9 +
+                ((observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1]]))) * 0.1)  
                 #Change this calculations later on, this is just a filler for now
             else:
-                new_prob = (self.prob_grid[point[i][0], point[i][1]] * 0.8 +
-                observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1]] + 1) * 0.2)
+                new_prob = (self.prob_grid[point[i][0], point[i][1]] * 0.9 +
+                observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1]]) * 0.1)
 
             self.adjust_grid(point[i], new_prob)
             self.last_timestep_visited[point[i][0], point[i][1]] = timestep
@@ -125,13 +127,12 @@ class GridTracker:
             
             for i in range(len(observed_events)):
                 if observed_events[i] == self.bound:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.8 +
-                    ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.2)  
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.9 +
+                    ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.1)  
                     #Change this calculations later on, this is just a filler for now
                 else:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.8 +
-                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.2)
-                
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.9 +
+                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.1)
                 # print("Current timestep:", timestep)
                 # print("Last visited timestep", self.last_timestep_visited[points[i][0], points[i][1]])
                 # print("New probability:", new_prob)
@@ -161,12 +162,12 @@ class GridTracker:
             
             for i in range(len(observed_events)):
                 if observed_events[i] == self.bound:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
-                    ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.5)  
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.9 +
+                    ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.1)  
                     #Change this calculations later on, this is just a filler for now
                 else:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
-                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.5)
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.9 +
+                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.1)
 
                 self.adjust_grid(points[i], new_prob)
                 self.last_timestep_visited[points[i][0], points[i][1]] = timestep
@@ -387,13 +388,3 @@ class GridWorld:
         pygame.event.pump()
         pygame.display.update()
         self.clock.tick(4)
-    
-    def get_e_grid(
-        self
-    ) -> np.array:
-        return self.e_grid
-    
-    def get_p_grid(
-        self,
-    ) -> np.array:
-        return self.p_grid

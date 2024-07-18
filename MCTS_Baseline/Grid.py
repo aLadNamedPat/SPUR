@@ -44,7 +44,7 @@ class GridTracker:
         
         if timestep == 0:
             return self.tracked_grid, self.prob_grid, self.agent_location
-    
+
         if observed_events == self.bound:
             new_prob = self.prob_grid[point[0], point[1]] * 0.5 + \
             (1 + (observed_events / (timestep - \
@@ -63,8 +63,20 @@ class GridTracker:
         self.tracked_grid[point[0], point[1]] = 0
         self.agent_location.fill(0)[point[0],point[1]] = 1
 
-        return self.tracked_grid, self.prob_grid, self.agent_location    
+        return self.tracked_grid, self.prob_grid, self.agent_location
+    
+    def get_possible_moves(
+        self,
+    ):
+        position = np.where(self.agent_location == 1)
+        
+        available_moves = np.arange(self.n * self.n)
 
+        position = position[0] * self.n + position[1]
+
+        return np.delete(available_moves, position) # Returns all the possible moves (where the agents positions is not included)
+    
+    
 # The actual gridworld where the real number of events and event probabilities are tracked
 class GridWorld:
     def __init__(
@@ -123,6 +135,36 @@ class GridWorld:
         self.p_grid = self.p_grid.clip(0, 1)
         self.e_grid = np.zeros((n, n))
 
+    def generate(
+        self,
+        num_steps,
+    ):
+        for i in range(num_steps):
+            random_numbers = np.random.rand(*self.e_grid.shape)
+            event_occurrences = random_numbers < self.p_grid
+            self.e_grid += event_occurrences.astype(int)
+            self.e_grid = self.e_grid.clip(0, self.e_bounds)
+    
+    def step_without_generating(
+        self,
+        point : tuple[int, int],
+    ):
+        events_found = self.e_grid[point[0], point[1]]
+        self.e_grid[point[0], point[1]] = 0
+        return events_found
+    
+    def step_timestep_no_generating(
+        self,
+        traj : list[tuple[int, int]]
+    ) -> list[int]:   
+        events_found_list = []                                              # Keeps track of the number of events that have been found per step
+
+        for x, y in traj:                                                   # Uses the trajectory of the agent to calcualate how much the agent accumulates after all its steps
+            e = self.step_without_generating((x,y))
+            events_found_list.append(e)                                     # Adds the number of events found to its list
+            
+        return events_found_list   
+        
     #Single timestep stepping
     def step(
         self,
@@ -144,10 +186,10 @@ class GridWorld:
         self.num_events -= int(events_found)                                # Subtract the number of events from the total number of current active events
         self.total_events_detected += events_found                          # Add the number of events found to the total number of events detected
         self.total_detection_time += self.num_events                        # Since the active events are still not detected, add their result to the total detection time
-        self.clock = pygame.time.Clock()
-        if self.rendering:
-            self.render()
-            time.sleep(0.2)
+        # self.clock = pygame.time.Clock()
+        # if self.rendering:
+        #     self.render()
+        #     time.sleep(0.2)
             
         return events_found                                                 # Returns the number of events found at the given location
     

@@ -2,6 +2,8 @@ import torch
 import random
 from collections import deque
 import numpy as np
+import pickle
+import gzip
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -25,7 +27,6 @@ class ReplayBuffer:
         return states, actions, rewards, next_states
 
     def add(self, state, action, reward, next_state):
-
         # print(state)
         # print(action)
         # print(reward)
@@ -48,3 +49,32 @@ class ReplayBuffer:
 
     def get_size(self):
         return len(self.memory)
+    
+    def save_replay_buffer(self, filename):
+        with gzip.open(filename, 'wb') as f:
+            pickle.dump(self.memory, f)
+        print("Replay buffer saved")
+
+    def load_replay_buffer(self, filename = "replay_buffer.pkl.gz"):
+        with gzip.open(filename, 'rb') as f:
+            self.memory = pickle.load(f)
+        print(f'Replay buffer loaded from {filename}')
+
+    def split_training_testing(self, split_ratio):
+        split_idx = int(len(self.memory) * split_ratio)
+        training_set = list(self.memory)[:split_idx]
+        testing_set = list(self.memory)[split_idx:]
+        
+        self.training_set = deque(training_set, maxlen=self.memory.maxlen)
+        self.testing_set = deque(testing_set, maxlen=self.memory.maxlen)
+
+
+    # def encoder_decoder_sampling(self, batch_size):
+    #     sampled_training = random.sample(self.training_set, batch_size)
+    #     sampled_testing = random.sample(self.testing_set, batch_size)
+
+    #     with torch.no_grad():
+    #         states = torch.stack([exp[0] for exp in sampled_training]).to(device)
+    #         states_testing = torch.stack([exp[0] for exp in sampled_testing]).to(device)
+
+    #     return states, states_testing

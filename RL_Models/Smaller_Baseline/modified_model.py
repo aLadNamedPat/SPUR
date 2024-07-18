@@ -26,13 +26,13 @@ class qValuePredictor(nn.Module):
             self.encoder_conv_layer(
                 in_channels, 
                 hidden_dims[0], 
-                5, # Size of kernels
-                1, # Number of strides
-                3  # Padding given
+                4, # Size of kernels
+                2, # Number of strides
+                2  # Padding given
             )
         )
         
-        for i in range(len(hidden_dims) - 1):
+        for i in range(len(hidden_dims) - 2):
             self.encoder_store.append(
                 nn.Sequential(
                     nn.Conv2d(
@@ -45,16 +45,27 @@ class qValuePredictor(nn.Module):
                 )
             )
 
+        self.encoder_store.append(
+            nn.Sequential(
+                nn.Conv2d(
+                    hidden_dims[-2],
+                    hidden_dims[-1],
+                    kernel_size=3,
+                    padding=0
+                ),
+                nn.ReLU()
+            )
+        )
         self.encoder_decoder_linear = (
             nn.Sequential(
                 nn.Linear(
-                    in_features = hidden_dims[-1] * 25, 
-                    out_features = 500,
+                    in_features = hidden_dims[-1] * 9, 
+                    out_features = 200,
                 ),
                 nn.ReLU(),
                 nn.Linear(
-                    in_features = 500,
-                    out_features=hidden_dims[-1] * 25
+                    in_features = 200,
+                    out_features=hidden_dims[-1] * 9
                 ),
                 nn.ReLU(),
             )
@@ -64,9 +75,46 @@ class qValuePredictor(nn.Module):
 
         hidden_dims.reverse()
         self.decoder_store = []
+        self.decoder2_store = []
 
-        for i in range(len(hidden_dims) - 1):
+        self.decoder_store.append(
+            nn.Sequential(
+                nn.ConvTranspose2d(
+                    hidden_dims[0],
+                    hidden_dims[1],
+                    kernel_size=3,
+                    padding = 0,
+                ),
+                nn.ReLU(),
+            )
+        )
+
+        self.decoder2_store.append(
+            nn.Sequential(
+                nn.ConvTranspose2d(
+                    hidden_dims[0],
+                    hidden_dims[1],
+                    kernel_size=3,
+                    padding = 0,
+                ),
+                nn.ReLU(),
+            )
+        )
+
+        for i in range(1, len(hidden_dims) - 1):
             self.decoder_store.append(
+                nn.Sequential(
+                    nn.ConvTranspose2d(
+                        hidden_dims[i],
+                        hidden_dims[i + 1],
+                        kernel_size=3,
+                        padding = 1,
+                    ),
+                    nn.ReLU(),
+                )
+            )
+
+            self.decoder2_store.append(
                 nn.Sequential(
                     nn.ConvTranspose2d(
                         hidden_dims[i],
@@ -82,14 +130,25 @@ class qValuePredictor(nn.Module):
             self.decoder_conv_layer(
                 hidden_dims[-1],
                 out_channels,
-                5,
-                1,
-                3
+                4,
+                2,
+                2
+            )
+        )
+
+        self.decoder2_store.append(
+            self.decoder_conv_layer(
+                hidden_dims[-1],
+                out_channels,
+                4,
+                2,
+                2
             )
         )
 
         self.encoder = nn.Sequential(*self.encoder_store)
         self.decoder = nn.Sequential(*self.decoder_store)
+        self.decoder2 = nn.Sequential(*self.decoder2_store)
 
     def encoder_conv_layer(
         self,
@@ -108,10 +167,6 @@ class qValuePredictor(nn.Module):
                     padding = padding
                 ),
                 nn.ReLU(),
-                nn.MaxPool2d(
-                    kernel_size = 2,
-                    stride = 2
-                ),
         )
 
     def decoder_conv_layer(
@@ -123,11 +178,6 @@ class qValuePredictor(nn.Module):
         padding : int = 0,
     ) -> nn.Sequential:
         return nn.Sequential(
-            nn.Upsample(
-                scale_factor = 2,
-                mode = "nearest"
-            ),
-            nn.ReLU(),
             nn.ConvTranspose2d(
                 input_channels,
                 output_channels,
@@ -135,8 +185,23 @@ class qValuePredictor(nn.Module):
                 stride = stride,
                 padding = padding
             ),
+            nn.ReLU()
         )
-        
+    
+    def reconstruction(
+        self,
+        input : torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        batch_size, num_channels, w, h = input.shape
+
+        x = self.encoder(input)
+        x = x.view(batch_size, -1)
+        x = self.encoder_decoder_linear(x)
+        x = x.view(-1, self.stored_channels, 3, 3)
+        x = self.decoder2(x)
+
+        return x
+    
     def forward(
         self,
         input : torch.Tensor,
@@ -147,7 +212,7 @@ class qValuePredictor(nn.Module):
         x = self.encoder(input)
         x = x.view(batch_size, -1)
         x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 5, 5)
+        x = x.view(-1, self.stored_channels, 3, 3)
         x = self.decoder(x)
 
         positions = torch.argwhere(input)
@@ -167,10 +232,11 @@ class qValuePredictor(nn.Module):
         x = self.encoder(input)
         x = x.view(batch_size, -1)
         x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 5, 5)
+        x = x.view(-1, self.stored_channels, 3, 3)
         x = self.decoder(x)
         
         # print("Q_Values:", x) 
+        print("INPUT", input)
         positions = torch.argwhere(input[0,2])
 
         x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
@@ -209,7 +275,7 @@ class qValuePredictor(nn.Module):
         x = self.encoder(input)
         x = x.view(batch_size, -1)
         x = self.encoder_decoder_linear(x)
-        x = x.view(-1, self.stored_channels, 5, 5)
+        x = x.view(-1, self.stored_channels, 3, 3)
         x = self.decoder(x)
         action_x = action[0].long()
         action_y = action[1].long()
@@ -223,8 +289,7 @@ class qValuePredictor(nn.Module):
         reconstructed : torch.Tensor,
         actual : torch.Tensor,
     ) -> torch.Tensor:
-        l = F.mse_loss(reconstructed, actual)
-        wandb.log({"Loss over time" : l})
+        l = F.smooth_l1_loss(reconstructed, actual)
         return l
     
     def reconstruction_loss(

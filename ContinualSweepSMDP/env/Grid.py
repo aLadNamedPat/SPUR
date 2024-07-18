@@ -28,7 +28,7 @@ class GridTracker:
         self.total_observed = np.zeros((n, n))              # Keeps track of the number of events that were observed at a location in the past
 
         if original:
-            self.last_timestep_visited = np.full((n, n), float("inf"))   # Keeps track of the timestep last visited if the original tracking is being used
+            self.last_timestep_visited = np.full((n, n), -float("inf"))   # Keeps track of the timestep last visited if the original tracking is being used
             self.exponent_grid = np.full((n, n), np.e)                   # Exponent grid that will be used for poisson distribution calculations
 
         else:
@@ -50,8 +50,8 @@ class GridTracker:
         observed_events : int,
         timestep : int = 0,
     ) -> np.array:
-        
         if not self.original:
+            self.agent_locations.fill(0)
             self.agent_locations[point[0],point[1]] = 1
             if timestep == 0:
                 return self.tracked_grid, self.prob_grid, self.agent_locations
@@ -61,9 +61,9 @@ class GridTracker:
                 self.last_timestep_visited[point[0], point[1]])) * 0.2  #Change this calculations later on, this is just a filler for now
             
             else:
-                new_prob = self.prob_grid[point[0], point[1]] * 0.5 + \
+                new_prob = self.prob_grid[point[0], point[1]] * 0.8 + \
                 observed_events / (timestep - \
-                self.last_timestep_visited[point[0], point[1]]) * 0.5  
+                self.last_timestep_visited[point[0], point[1]]) * 0.2
 
             self.adjust_grid(point, new_prob)
 
@@ -81,13 +81,15 @@ class GridTracker:
 
             self.agent_locations.fill(0)
             self.agent_locations[point[0],point[1]] = 1
+
             return self.tracked_grid, self.prob_grid, self.agent_locations
 
         else:
+            self.agent_locations.fill(0)
             self.agent_locations[point[0], point[1]] = 1
 
             if timestep == 0:
-                exp_grid = np.multiply(-self.last_timestep_visited, self.prob_grid)
+                exp_grid = np.multiply(self.last_timestep_visited - timestep, self.prob_grid)
                 saved_grid = np.power(self.exponent_grid, exp_grid)
                 return saved_grid, self.agent_locations
             
@@ -96,8 +98,8 @@ class GridTracker:
                 ((observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1]]))) * 0.2)  
                 #Change this calculations later on, this is just a filler for now
             else:
-                new_prob = (self.prob_grid[point[i][0], point[i][1]] * 0.3 +
-                observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1]]) * 0.7)
+                new_prob = (self.prob_grid[point[i][0], point[i][1]] * 0.8 +
+                observed_events / (timestep - self.last_timestep_visited[point[i][0], point[i][1]]) * 0.2)
 
             self.adjust_grid(point[i], new_prob)
             self.last_timestep_visited[point[i][0], point[i][1]] = timestep
@@ -106,8 +108,9 @@ class GridTracker:
             for i in range(len(observed_events)):
                 self.agent_locations[point[i][0], point[i][1]] = 1
 
-            exp_grid = np.multiply(timestep-self.last_timestep_visited, self.prob_grid)
+            exp_grid = np.multiply(self.last_timestep_visited - timestep, self.prob_grid)
             saved_grid = np.power(self.exponent_grid, exp_grid)
+            print("AGENT LOCATION: ", self.agent_locations)
 
             return saved_grid, self.agent_locations
 
@@ -131,8 +134,8 @@ class GridTracker:
                     ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.2)  
                     #Change this calculations later on, this is just a filler for now
                 else:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.3 +
-                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.7)
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.8 +
+                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.2)
                 # print("Current timestep:", timestep)
                 # print("Last visited timestep", self.last_timestep_visited[points[i][0], points[i][1]])
                 # print("New probability:", new_prob)
@@ -156,18 +159,18 @@ class GridTracker:
                 self.agent_locations[point[0], point[1]] = 1
 
             if timestep == 0:
-                exp_grid = np.multiply(-self.last_timestep_visited, self.prob_grid)
+                exp_grid = np.multiply(self.last_timestep_visited - timestep, self.prob_grid)
                 saved_grid = np.power(self.exponent_grid, exp_grid)
                 return saved_grid, self.agent_locations
             
             for i in range(len(observed_events)):
                 if observed_events[i] == self.bound:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.8 +
-                    ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.2)  
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
+                    ((observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]))) * 0.5)  
                     #Change this calculations later on, this is just a filler for now
                 else:
-                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.3 +
-                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.7)
+                    new_prob = (self.prob_grid[points[i][0], points[i][1]] * 0.5 +
+                    observed_events / (timestep - self.last_timestep_visited[points[i][0], points[i][1]]) * 0.5)
 
                 self.adjust_grid(points[i], new_prob)
                 self.last_timestep_visited[points[i][0], points[i][1]] = timestep
@@ -176,7 +179,7 @@ class GridTracker:
             for i in range(len(observed_events)):
                 self.agent_locations[points[i][0], points[i][1]] = 1
 
-            exp_grid = np.multiply(-self.last_timestep_visited, self.prob_grid)
+            exp_grid = np.multiply(self.last_timestep_visited - timestep, self.prob_grid)
             saved_grid = np.power(self.exponent_grid, exp_grid)
 
             return saved_grid, self.agent_locations
@@ -224,7 +227,7 @@ class GridWorld:
         if decrease_rate is not None:
             decrease_rate = np.array(decrease_rate)
         else:
-            decrease_rate = central_probs / 5
+            decrease_rate = central_probs
 
         self.p_grid = np.zeros((n, n))
 
@@ -388,3 +391,13 @@ class GridWorld:
         pygame.event.pump()
         pygame.display.update()
         self.clock.tick(4)
+    
+    def get_e_grid(
+        self
+    ) -> np.array:
+        return self.e_grid
+    
+    def get_p_grid(
+        self,
+    ) -> np.array:
+        return self.p_grid

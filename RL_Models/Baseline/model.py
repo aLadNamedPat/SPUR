@@ -9,7 +9,7 @@ class qValuePredictor(nn.Module):
         self,
         in_channels : int,
         out_channels : int = 1,
-        hidden_dims : list = [32, 16, 16],
+        hidden_dims : list = [16, 16, 32],
     ) -> None:
         super(qValuePredictor, self).__init__()
 

@@ -15,15 +15,14 @@ class GridTracker:
         bound : int
     ) -> None:
     
-        self.bound = bound
-        self.n = n 
-        self.prob_grid = np.ones((n, n))                    #The current calculated probibility of events occurring
-        self.tracked_grid = np.zeros((n, n))                #The current grid tracking the expected value of events occurring based on the calculated probability
-        self.agent_location = np.zeros((n,n))               #The current location of the agent
+        self.bound = bound                                  # Defining the bound in the environment
+        self.prob_grid = np.ones((n, n))                    # The current calculated probibility of events occurring
+        self.tracked_grid = np.zeros((n, n))                # The current grid tracking the expected value of events occurring based on the calculated probability
+        self.agent_location = np.zeros((n,n))               # The current location of the agent
 
-        #Used to keep track of probabilities occurring
-        self.last_timestep_visited = np.zeros((n, n))       #Keeps track of the timestep that a location was last visited by an agent
-        self.total_observed = np.zeros((n, n))              #Keeps track of the number of events that were observed at a location in the past
+        # Used to keep track of probabilities occurring
+        self.last_timestep_visited = np.zeros((n, n))       # Keeps track of the timestep that a location was last visited by an agent
+        self.total_observed = np.zeros((n, n))              # Keeps track of the number of events that were observed at a location in the past
 
         self.current_timestep = 0
     
@@ -41,7 +40,7 @@ class GridTracker:
         observed_events : int,
         timestep : int = 0,
     ) -> np.array:
-        
+        self.agent_location[point[0],point[1]] = 1
         if timestep == 0:
             return self.tracked_grid, self.prob_grid, self.agent_location
     
@@ -55,15 +54,17 @@ class GridTracker:
             observed_events / (timestep - \
             self.last_timestep_visited[point[0], point[1]]) * 0.5  
 
-        self.adjust_grid(point,new_prob)
+        self.adjust_grid(point, new_prob)
         
         self.last_timestep_visited[point[0], point[1]] = timestep
 
         self.tracked_grid += self.prob_grid
         self.tracked_grid[point[0], point[1]] = 0
-        self.agent_location.fill(0)[point[0],point[1]] = 1
+        self.tracked_grid = self.tracked_grid.clip(0, self.bound)
+        self.agent_location = self.agent_location.fill(0)
+        self.agent_location[point[0],point[1]] = 1
+        return self.tracked_grid, self.prob_grid, self.agent_location
 
-        return self.tracked_grid, self.prob_grid, self.agent_location    
 
 # The actual gridworld where the real number of events and event probabilities are tracked
 class GridWorld:
@@ -128,8 +129,9 @@ class GridWorld:
         self,
         point : tuple[int, int], #the location of the agent
     ) -> int:
-        #Determines where events have occurred and adds to them    
-        self.location = point                                               # Save the location of the agent for rendering    
+        # Determines where events have occurred and adds to them    
+        self.location = point                                               # Save the location of the agent for rendering (somewhat buggy because it only works for one agent for now)
+                                                                              
         random_numbers = np.random.rand(*self.e_grid.shape)                 # Generates random floats from 0 to 1 in the shape of the grid
         event_occurrences = random_numbers < self.p_grid                    # If random_number generated is smaller than the probability of events occurring, then an event has occurred 
         self.old_e_grid = np.copy(self.e_grid)                              # Save the event grid before adding anything or clipping it

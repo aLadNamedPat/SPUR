@@ -32,7 +32,7 @@ class R_Learning:
         self,
         gridSize : int,
         env,
-        input_channels : int = 4,
+        input_channels : int = 3,
         beta : int = 1,
         alpha : float = .005,
         tau : int = 500,
@@ -113,8 +113,8 @@ class R_Learning:
             self._last_obs = list(obs[0].values())
             self.initiate = False
             self.total_ep_reward = 0
-            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
-
+            self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
+            print(self.agent_positions)
         self.actor.train(False)
         num_collected_steps = 0
 
@@ -128,13 +128,13 @@ class R_Learning:
             self.rollout_step += 1
             action = self.sample_action() #Gets the action stores from the last observed action
             action = self.action_to_env(action)
-            new_obs, rewards, dones, _, info = self.env.step(action)
+            new_obs, rewards, dones, truncations, info = self.env.step(action)
             new_obs, action, rewards = self.filter_dict(new_obs, action, rewards)
             wandb.log({"Reward" : rewards[0]})
 
             self.replayBuffer.add(self._last_obs, action[0], rewards[0], list(new_obs[0].values()))
             self._last_obs = list(new_obs[0].values())
-            self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+            self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
             self.total_ep_reward += info["events_detected"]
             self.current_time += info['num_timesteps']
             self.total_time += info['num_timesteps']
@@ -153,16 +153,25 @@ class R_Learning:
             #     self.total_ep_reward = 0
             #     self.rollout_step = 0
 
+            if truncations["agent0"]:
+                obs, info = self.env.reset()
+                obs = self.filter_dict(obs)
+                self._last_obs = list(obs[0].values())
+                self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
+                wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
+                self.rollout_step = 0
+
             if count_method == "decision" and self.rollout_step > self.episode_length and self.current_step < self.reset_steps:
                 obs, info = self.env.reset_agent_positions()
                 obs = self.filter_dict(obs)
                 self._last_obs = list(obs[0].values())
-                self.agent_positions = np.argwhere(np.array(self._last_obs[2]) == 1)
+                self.agent_positions = np.argwhere(np.array(self._last_obs[1]) == 1)
                 wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
                 self.rollout_step = 0
            
             if count_method == "decision" and self.rollout_step > self.episode_length and self.current_step > self.reset_steps:
                 wandb.log({"detections per timestep" : self.total_ep_reward / self.current_time})                
+                self.rollout_step = 0
 
             elif count_method == "timesteps" and self.current_time > self.episode_length:
                 obs, info = self.env.reset()
@@ -210,6 +219,7 @@ class R_Learning:
             #         "First Observation": wandb.Image(first_obs.cpu()),
             #         "First Reconstruction": wandb.Image(first_recon.cpu())
             #     })
+
             self.optimizer.zero_grad()
             l = self.actor.find_loss(self.actor.find_Q_value(obs, actions), y)
             l.backward()
@@ -257,9 +267,10 @@ class R_Learning:
     def predict(
         self,
         last_observation : torch.Tensor,
+        prediction_mode : bool = False,
     ) -> torch.Tensor:
         
-        if random.random() < self.exploration_rate:
+        if random.random() < self.exploration_rate and not prediction_mode:
             # print(self.total_time)
             # print(self.training_steps)
             # print(self.exploration_rate)

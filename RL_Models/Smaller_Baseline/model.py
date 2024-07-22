@@ -171,7 +171,7 @@ class qValuePredictor(nn.Module):
         x = self.decoder(x)
         
         # print("Q_Values:", x) 
-        positions = torch.argwhere(input[0,2])
+        positions = torch.argwhere(input[0,1])
 
         x[:, :, positions[0, 0], positions[0, 1]] = -float("inf")
 
@@ -187,8 +187,8 @@ class qValuePredictor(nn.Module):
             # wandb.log({"Agent Location" : [wandb.Image(input[1], caption=f"Location")]})
             wandb.log({"Expected Reward" : [wandb.Image(input[0], caption=f"Tracked expectation")]})
 
-            wandb.log({"Probability Grid" : [wandb.Image(input[1], caption=f"Tracked probability")]})
-            wandb.log({"Agent Position" : [wandb.Image(input[2], caption=f"Agent Position")]})
+            # wandb.log({"Probability Grid" : [wandb.Image(input[1], caption=f"Tracked probability")]})
+            wandb.log({"Agent Position" : [wandb.Image(input[1], caption=f"Agent Position")]})
             # wandb.log({"Probability Map" : [wandb.Image(input)]})
         self.step += 1
 
